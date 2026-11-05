@@ -1,0 +1,20 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "board.c"
+        "zigbee_router.c"
+        "diagnostics.c"
+        "diag_logic.c"
+        "wiser_profile.c"
+        "serial_cli.c"
+    INCLUDE_DIRS "."
+    PRIV_REQUIRES
+        nvs_flash
+        esp_driver_gpio
+        esp_timer
+        esp_app_format
+        spi_flash
+        console
+        ieee802154
+        espressif__esp-zigbee-lib
+)

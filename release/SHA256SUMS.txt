@@ -1,0 +1,2 @@
+de3c30275440ef18229189f6b5387b882898d3f88935dccbf1e118cdade5730e  ./wiserbridge-router-0.1.0-xiao-esp32c6.bin
+bdf7a93d5d5e48fc63a4a83fd27bebc6724b5ea2ee62f785de05add2ab724b89  ./wiserbridge-sniffer-0.1.0-xiao-esp32c6.bin

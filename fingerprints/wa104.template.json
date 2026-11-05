@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "status": "template",
+  "device_label": "wa104",
+  "evidence": [],
+  "node": {
+    "logical_type": null,
+    "manufacturer_code": null,
+    "mac_capability_flags": null,
+    "server_mask": null,
+    "stack_compliance_revision": null,
+    "max_buffer_size": null,
+    "max_incoming_transfer_size": null,
+    "max_outgoing_transfer_size": null
+  },
+  "basic": {
+    "zcl_version": null,
+    "application_version": null,
+    "stack_version": null,
+    "hw_version": null,
+    "manufacturer_name": null,
+    "model_identifier": null,
+    "date_code": null,
+    "power_source": null,
+    "sw_build_id": null
+  },
+  "endpoints": [],
+  "proprietary_clusters": [],
+  "notes": "TEMPLATE ONLY - every null is UNKNOWN. Populate exclusively from real evidence (router 'interview', separate Zigbee2MQTT bench interview, or sniffer capture) and record each source in 'evidence'. Do not copy the device's IEEE address, install code or any key.",
+  "evidence_examples": [
+    {
+      "method": "wb-interview | zigbee2mqtt-database | sniffer-capture | public-database",
+      "reference": "file name / URL / capture id",
+      "note": "what was observed, firmware version, date"
+    }
+  ],
+  "endpoints_example_shape": [
+    {
+      "endpoint": 1,
+      "profile_id": "0x0104",
+      "device_id": "0x0000",
+      "device_version": 0,
+      "input_clusters": [
+        "0x0000"
+      ],
+      "output_clusters": []
+    }
+  ]
+}

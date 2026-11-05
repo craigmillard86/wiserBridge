@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/wiserbridge/fingerprint.schema.json",
+  "title": "WiserBridge Zigbee device fingerprint",
+  "description": "What a real Zigbee device reported about itself, plus where that evidence came from. Unique identity (IEEE address, install code) and keys must never be stored. tools/wb_fingerprint.py implements these rules without needing a JSON-schema library.",
+  "type": "object",
+  "required": ["schema_version", "status", "device_label", "evidence", "node", "basic", "endpoints"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "status": {"enum": ["template", "captured"], "description": "'captured' only when required fields come from real evidence"},
+    "device_label": {"type": "string"},
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["method"],
+        "properties": {
+          "method": {"enum": ["wb-interview", "zigbee2mqtt-database", "sniffer-capture", "public-database", "ota-image", "other"]},
+          "reference": {"type": "string"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "logical_type": {"enum": ["ZC", "ZR", "ZED", null]},
+        "manufacturer_code": {"type": ["string", "null"], "pattern": "^0x[0-9a-fA-F]{4}$"},
+        "mac_capability_flags": {"type": ["string", "null"]},
+        "server_mask": {"type": ["string", "null"]},
+        "stack_compliance_revision": {"type": ["integer", "null"]},
+        "max_buffer_size": {"type": ["integer", "null"]},
+        "max_incoming_transfer_size": {"type": ["integer", "null"]},
+        "max_outgoing_transfer_size": {"type": ["integer", "null"]}
+      }
+    },
+    "basic": {
+      "type": "object",
+      "properties": {
+        "zcl_version": {"type": ["integer", "null"]},
+        "application_version": {"type": ["integer", "null"]},
+        "stack_version": {"type": ["integer", "null"]},
+        "hw_version": {"type": ["integer", "null"]},
+        "manufacturer_name": {"type": ["string", "null"]},
+        "model_identifier": {"type": ["string", "null"]},
+        "date_code": {"type": ["string", "null"]},
+        "power_source": {"type": ["integer", "null"]},
+        "sw_build_id": {"type": ["string", "null"]}
+      }
+    },
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["endpoint"],
+        "properties": {
+          "endpoint": {"type": "integer", "minimum": 1, "maximum": 240},
+          "profile_id": {"type": ["string", "null"], "pattern": "^0x[0-9a-fA-F]{4}$"},
+          "device_id": {"type": ["string", "null"], "pattern": "^0x[0-9a-fA-F]{4}$"},
+          "device_version": {"type": ["integer", "null"]},
+          "input_clusters": {"type": "array", "items": {"type": "string", "pattern": "^0x[0-9a-fA-F]{4}$"}},
+          "output_clusters": {"type": "array", "items": {"type": "string", "pattern": "^0x[0-9a-fA-F]{4}$"}}
+        }
+      }
+    },
+    "proprietary_clusters": {"type": "array", "items": {"type": "string"}, "description": "0xFC00-0xFFFF clusters seen; their attributes are not discoverable without the manufacturer code and usually not documented"},
+    "notes": {"type": "string"}
+  }
+}

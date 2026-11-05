@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# WiserBridge router - default configuration (Seeed XIAO ESP32-C6)
+# ---------------------------------------------------------------------------
+CONFIG_IDF_TARGET="esp32c6"
+
+# XIAO ESP32-C6 has 4 MB flash
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+
+# Custom partition table with persistent Zigbee storage
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# Quiet bootloader
+CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
+CONFIG_BOOTLOADER_LOG_LEVEL=2
+
+# Console + logs on the native USB Serial/JTAG port (the XIAO's USB-C)
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Zigbee: router/coordinator-capable library, native 802.15.4 radio
+CONFIG_ZB_ENABLED=y
+CONFIG_ZB_ZCZR=y
+CONFIG_ZB_RADIO_NATIVE=y
+
+# Wi-Fi and Bluetooth are not used by the repeater. Wi-Fi is never started in
+# this firmware; Bluetooth controller is disabled to keep the radio dedicated
+# to IEEE 802.15.4.
+CONFIG_BT_ENABLED=n
+
+# Reliability
+CONFIG_ESP_TASK_WDT_EN=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=10
+CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y
+CONFIG_FREERTOS_HZ=1000
+
+
+# Runtime log level control
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y

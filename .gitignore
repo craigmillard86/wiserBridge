@@ -1,0 +1,16 @@
+build/
+sniffer/build/
+managed_components/
+sniffer/managed_components/
+dependencies.lock
+sniffer/dependencies.lock
+sdkconfig
+sdkconfig.old
+sniffer/sdkconfig
+sniffer/sdkconfig.old
+tests/host/build/
+__pycache__/
+*.pyc
+captures/
+logs/
+release/*.bin
