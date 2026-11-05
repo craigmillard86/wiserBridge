@@ -77,6 +77,13 @@ esp_err_t wb_opt_set_channel_mask(uint32_t mask);
 int wb_opt_get_tclk_required(void);
 esp_err_t wb_opt_set_tclk_required(int v);
 
+/* On/Off output pin override. WB_RELAY_GPIO_UNSET = use the Kconfig default. */
+#define WB_RELAY_GPIO_UNSET (-2)
+int wb_opt_get_relay_gpio(void);          /* WB_RELAY_GPIO_UNSET if not set; -1 = log only */
+esp_err_t wb_opt_set_relay_gpio(int gpio);
+int wb_opt_get_relay_active_low(void);    /* -1 if not set */
+esp_err_t wb_opt_set_relay_active_low(int v);
+
 #ifdef __cplusplus
 }
 #endif

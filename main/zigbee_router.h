@@ -43,6 +43,9 @@ typedef struct {
 /* Start the Zigbee task (non-blocking). */
 esp_err_t wb_zb_start(void);
 
+/* Apply the On/Off output pin/polarity from NVS (or Kconfig default) to the board. */
+void wb_zb_apply_relay_config(void);
+
 /* Snapshot of lifecycle state (safe from any task). */
 void wb_zb_get_status(wb_zb_status_t *out);
 const char *wb_net_state_str(wb_net_state_t s);

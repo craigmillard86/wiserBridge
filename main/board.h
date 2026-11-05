@@ -3,9 +3,18 @@
  */
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "sdkconfig.h"
+
+/* A 'bool default n' Kconfig emits no #define when off, so provide a resolved 0/1 default. */
+#ifdef CONFIG_WB_RELAY_ACTIVE_LOW
+#define WB_RELAY_ACTIVE_LOW_DEFAULT 1
+#else
+#define WB_RELAY_ACTIVE_LOW_DEFAULT 0
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +42,14 @@ void wb_board_set_led(wb_led_mode_t mode);
 
 /* Blink for identify for the given number of seconds (0 cancels). */
 void wb_board_identify(uint16_t seconds);
+
+/* On/Off output (driven by the plug's On/Off cluster). Init once before use. */
+void wb_board_relay_init(void);
+void wb_board_relay_configure(int gpio, bool active_low); /* apply a new pin/polarity live (gpio<0 = none) */
+void wb_board_relay_set(bool on);
+bool wb_board_relay_get(void);
+int wb_board_relay_gpio(void);
+bool wb_board_relay_active_low(void);
 
 const char *wb_board_antenna_str(void);
 

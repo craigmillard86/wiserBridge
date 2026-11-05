@@ -22,9 +22,9 @@ Legend: 🤖 automated (no hardware) · 🧪 bench (C6 only) · 🏠 needs the r
 | | Milestone | Type | Pass criteria | Status |
 |---|---|---|---|---|
 | M1 | Firmware builds | 🤖🧪 | Builds for esp32c6 with no errors/warnings; boot banner + CLI work on the XIAO | **Passed 2026-11-05** (see verification-report.md) |
-| M2 | Generic Zigbee commissioning | 🏠 | `join` attempted against the Wiser hub; outcome A/B/B′/C recorded with verdict + log; no network ever formed | open |
+| M2 | Generic Zigbee commissioning | 🏠 | `join` attempted against the Wiser hub; outcome A/B/B′/C recorded with verdict + log; no network ever formed | **Done 2026-11-05**: generic identity joined then REMOVED ~10 s (outcome B′, 3×); joined and RETAINED only with a recognised model identity (Heiman plug). See docs/wiser-public-sources.md |
 | M3 | Network persistence | 🏠 | After `reboot` and after a power-cycle: `START: network membership restored from NVRAM`, same PAN/short/channel, `JOINED_*` verdict, no re-commissioning | open |
-| M4 | Multi-hop routing | 🏠 | Test 4 below passes (relay next hop = WA104, hub not a direct neighbour, ping to hub succeeds) — ideally confirmed by sniffer | open |
+| M4 | Multi-hop routing | 🏠 | Test 4 below passes (relay next hop = WA104/plug, hub not a direct neighbour, ping to hub succeeds) — ideally confirmed by sniffer | **Verified 2026-11-05**: relay next hop = plug 0x7798 ACTIVE, hub not a neighbour, ping 0x0000 10/10, verdict JOINED_MULTIHOP_VERIFIED (path functional, stability TBD) |
 | M5 | Wiser TRV support | 🏠 | ≥1 TRV listed by `children` (sleepy) with matching IEEE, TRV keeps reporting in the app, no other device disrupted | open |
 | M6 | Reliability | 🏠 | Restart tests pass; `wb_health_report.py` all PASS for 24 h, then 7 days | open |
 

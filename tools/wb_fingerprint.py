@@ -86,7 +86,7 @@ def validate(fp: dict[str, Any], require_captured: bool = False) -> list[str]:
         if key.lower() in FORBIDDEN_KEYS:
             errs.append(f"forbidden identity/secret field present: {path} (never store IEEE addresses or keys)")
     for ep in fp.get("endpoints", []):
-        if not isinstance(ep.get("endpoint"), int) or not 1 <= ep["endpoint"] <= 240:
+        if not isinstance(ep.get("endpoint"), int) or not (1 <= ep["endpoint"] <= 240 or ep["endpoint"] == 242):  # 242 = Green Power
             errs.append(f"endpoint number invalid: {ep.get('endpoint')!r}")
         for f in ("profile_id", "device_id"):
             if ep.get(f) is not None and not HEX16.match(str(ep[f])):

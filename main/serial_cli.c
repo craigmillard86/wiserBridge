@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "aps_inspect.h"
+#include "board.h"
 #include "diag_logic.h"
 #include "diagnostics.h"
 #include "esp_app_desc.h"
@@ -229,6 +231,50 @@ static int cmd_tclk(int argc, char **argv)
     return 0;
 }
 
+static int cmd_relay(int argc, char **argv)
+{
+    if (argc >= 2) {
+        if (strcmp(argv[1], "on") == 0) {
+            wb_board_relay_set(true);
+        } else if (strcmp(argv[1], "off") == 0) {
+            wb_board_relay_set(false);
+        } else if (strcmp(argv[1], "pin") == 0 && argc >= 3) {
+            int pin = (strcmp(argv[2], "default") == 0) ? WB_RELAY_GPIO_UNSET : atoi(argv[2]);
+            if (pin < -1 || pin > 30) { printf("usage: relay pin <0..30|-1(none)|default>\n"); return 1; }
+            esp_err_t e = wb_opt_set_relay_gpio(pin);
+            printf("%s\n", e == ESP_OK ? "Saved. Applying now." : esp_err_to_name(e));
+            if (e == ESP_OK) wb_zb_apply_relay_config();
+        } else if (strcmp(argv[1], "invert") == 0 && argc >= 3) {
+            int v = strcmp(argv[2], "on") == 0 ? 1 : strcmp(argv[2], "off") == 0 ? 0
+                   : strcmp(argv[2], "default") == 0 ? -1 : -2;
+            if (v == -2) { printf("usage: relay invert <on|off|default>\n"); return 1; }
+            esp_err_t e = wb_opt_set_relay_active_low(v);
+            printf("%s\n", e == ESP_OK ? "Saved. Applying now." : esp_err_to_name(e));
+            if (e == ESP_OK) wb_zb_apply_relay_config();
+        } else {
+            printf("usage: relay [on|off|pin <n|default>|invert <on|off|default>]\n");
+            return 1;
+        }
+    }
+    int pin = wb_board_relay_gpio();
+    printf("On/Off output: state=%s, pin=%s%d, active-%s\n", wb_board_relay_get() ? "ON" : "OFF",
+           pin < 0 ? "none(" : "GPIO", pin, wb_board_relay_active_low() ? "low" : "high");
+    if (pin < 0) printf("  (log only - set a pin with 'relay pin <n>')\n");
+    printf("  Driven by the plug's On/Off cluster from the hub/app. 'on'/'off' here override locally.\n");
+    return 0;
+}
+
+static int cmd_apslog(int argc, char **argv)
+{
+    if (argc >= 2) {
+        if (strcmp(argv[1], "on") == 0) wb_aps_inspect_enable(true);
+        else if (strcmp(argv[1], "off") == 0) wb_aps_inspect_enable(false);
+        else { printf("usage: apslog [on|off]\n"); return 1; }
+    }
+    printf("APS inbound request logging: %s (lines tagged APS-IN / WB_APSIN)\n", wb_aps_inspect_enabled() ? "on" : "off");
+    return 0;
+}
+
 static int cmd_reset(int argc, char **argv)
 {
     int64_t now = esp_timer_get_time();
@@ -321,6 +367,8 @@ esp_err_t wb_cli_start(void)
     REGISTER("epid", cmd_epid, "[<EPID>|clear|show]", "Restrict joining to one extended PAN ID");
     REGISTER("channels", cmd_channels, "[<list>|0xMASK|default]", "Channels searched when joining, e.g. 'channels 15'");
     REGISTER("tclk", cmd_tclk, "[on|off|default]", "Require Trust Center link-key exchange when joining");
+    REGISTER("apslog", cmd_apslog, "[on|off]", "Log every ZDO/ZCL request the network sends to this node");
+    REGISTER("relay", cmd_relay, "[on|off|pin <n>|invert <on|off>]", "On/Off output pin driven by the plug On/Off cluster");
     REGISTER("reset", cmd_reset, "[confirm <code>]", "Leave network + erase Zigbee state (needs confirmation code)");
     REGISTER("reboot", cmd_reboot, NULL, "Restart the device (keeps network membership)");
     REGISTER("version", cmd_version, NULL, "Firmware and toolchain version");

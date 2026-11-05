@@ -15,12 +15,14 @@
 
 #include <string.h>
 
+#include "aps_inspect.h"
 #include "board.h"
 #include "diag_logic.h"
 #include "diagnostics.h"
 #include "esp_app_desc.h"
 #include "esp_check.h"
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_zigbee_core.h"
@@ -251,11 +253,53 @@ static void restart_cb(uint8_t param)
 /* Housekeeping: LED, isolation watchdog, periodic HEALTH                     */
 /* ------------------------------------------------------------------------- */
 
+/* Resolve the On/Off output pin: NVS override if set, else the Kconfig default. */
+void wb_zb_apply_relay_config(void)
+{
+    int pin = wb_opt_get_relay_gpio();
+    if (pin == WB_RELAY_GPIO_UNSET) pin = CONFIG_WB_RELAY_GPIO;
+    int inv = wb_opt_get_relay_active_low();
+    bool active_low = (inv < 0) ? (bool)WB_RELAY_ACTIVE_LOW_DEFAULT : (inv != 0);
+    wb_board_relay_configure(pin, active_low);
+}
+
+/* Keep the fake plug looking alive: refresh AC readings and re-report On/Off + current to the hub so
+ * it is not marked unresponsive. Runs in the stack thread (from housekeeping), so no lock needed. */
+static void plug_keepalive(void)
+{
+    uint8_t ep = wb_profile_get()->endpoint;
+    bool on = wb_board_relay_get();
+    uint16_t current = on ? 41 : 0; /* 0.041 A placeholder when "on" (RMSCurrent, ÷1000) */
+    uint16_t voltage = 2295 + (uint16_t)(esp_random() % 20); /* ~229.5-231.4 V */
+    esp_zb_zcl_set_attribute_val(ep, ESP_ZB_ZCL_CLUSTER_ID_ELECTRICAL_MEASUREMENT, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+                                 ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSVOLTAGE_ID, &voltage, false);
+    esp_zb_zcl_set_attribute_val(ep, ESP_ZB_ZCL_CLUSTER_ID_ELECTRICAL_MEASUREMENT, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+                                 ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSCURRENT_ID, &current, false);
+    esp_zb_zcl_report_attr_cmd_t rep = {
+        .zcl_basic_cmd = {.dst_addr_u.addr_short = 0x0000, .dst_endpoint = ep, .src_endpoint = ep},
+        .address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
+        .clusterID = ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+        .attributeID = ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
+    };
+    esp_zb_zcl_report_attr_cmd_req(&rep);
+    rep.clusterID = ESP_ZB_ZCL_CLUSTER_ID_ELECTRICAL_MEASUREMENT;
+    rep.attributeID = ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSCURRENT_ID;
+    esp_zb_zcl_report_attr_cmd_req(&rep);
+}
+
 static void housekeeping_cb(uint8_t param)
 {
     (void)param;
     wb_zb_status_t st;
     wb_zb_get_status(&st);
+
+#if CONFIG_WB_PLUG_REPORT_S > 0
+    static int64_t s_last_plug_ms = 0;
+    if (st.state == WB_NS_JOINED && now_ms() - s_last_plug_ms >= (int64_t)CONFIG_WB_PLUG_REPORT_S * 1000) {
+        s_last_plug_ms = now_ms();
+        plug_keepalive();
+    }
+#endif
 
     if (st.state == WB_NS_JOINED) {
         wb_link_summary_t ls;
@@ -324,6 +368,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
         ESP_LOGI(TAG, "Zigbee stack initialised (%s); starting BDB initialisation", esp_zb_get_version_string());
         ST_LOCK(); s_st.stack_started = true; ST_UNLOCK();
         esp_zb_set_tx_power(CONFIG_WB_TX_POWER_DBM);
+        wb_aps_inspect_install();
         esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_INITIALIZATION);
         esp_zb_scheduler_alarm(housekeeping_cb, 0, HOUSEKEEPING_PERIOD_MS);
         break;
@@ -555,12 +600,34 @@ static void zcl_str(char *dst, size_t dst_size, const char *src)
 static void identify_cb(uint8_t identify_on)
 {
     ESP_LOGI(TAG, "Identify %s", identify_on ? "start" : "stop");
+    wb_diag_event("IDENTIFY %s (from the network)", identify_on ? "start" : "stop");
     wb_board_identify(identify_on ? 30 : 0);
+}
+
+/* The hub drives the plug's On/Off cluster; the stack stores the attribute and calls us here.
+ * We mirror the new state to the output GPIO. Any other attribute write is just logged. */
+static void on_set_attr_value(const esp_zb_zcl_set_attr_value_message_t *m)
+{
+    if (!m) return;
+    if (m->info.cluster == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF &&
+        m->attribute.id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID &&
+        m->attribute.data.value) {
+        bool on = *(bool *)m->attribute.data.value;
+        wb_board_relay_set(on);
+        ESP_LOGI(TAG, "On/Off command from network: %s -> GPIO", on ? "ON" : "OFF");
+        wb_diag_event("ONOFF %s (ep%u, from the network)", on ? "ON" : "OFF", m->info.dst_endpoint);
+    } else {
+        ESP_LOGD(TAG, "Attr write ep%u cl 0x%04x attr 0x%04x", m->info.dst_endpoint, m->info.cluster,
+                 m->attribute.id);
+    }
 }
 
 static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message)
 {
     switch (callback_id) {
+    case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
+        on_set_attr_value((const esp_zb_zcl_set_attr_value_message_t *)message);
+        break;
     case ESP_ZB_CORE_CMD_READ_ATTR_RESP_CB_ID:
         wb_diag_on_read_attr_resp((const esp_zb_zcl_cmd_read_attr_resp_message_t *)message);
         break;
@@ -569,6 +636,76 @@ static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, co
         break;
     }
     return ESP_OK;
+}
+
+/*
+ * Add one extra cluster from the profile. Standard clusters are created with the SDK's own
+ * constructors and default attribute values (so the stack's handlers find the attributes they
+ * expect); client roles get an empty attribute list; manufacturer-specific IDs (>= 0xFC00) are
+ * added as empty custom clusters. None of these have any behaviour behind them.
+ */
+static esp_err_t add_profile_cluster(esp_zb_cluster_list_t *list, uint16_t id, uint8_t role)
+{
+    const bool server = (role == ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+    esp_zb_attribute_list_t *al;
+    switch (id) {
+    case ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY: {
+        esp_zb_identify_cluster_cfg_t c = {.identify_time = 0};
+        al = server ? esp_zb_identify_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_identify_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_GROUPS: {
+        esp_zb_groups_cluster_cfg_t c = {.groups_name_support_id = 0};
+        al = server ? esp_zb_groups_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_groups_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_SCENES: {
+        esp_zb_scenes_cluster_cfg_t c = {0};
+        al = server ? esp_zb_scenes_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_scenes_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_ON_OFF: {
+        esp_zb_on_off_cluster_cfg_t c = {.on_off = false};
+        al = server ? esp_zb_on_off_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_on_off_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_ALARMS: {
+        esp_zb_alarms_cluster_cfg_t c = {.alarm_table_size = 0};
+        al = server ? esp_zb_alarms_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_alarms_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_METERING: {
+        esp_zb_metering_cluster_cfg_t c = {0}; /* 0 kWh delivered, electric metering, kWh units */
+        al = server ? esp_zb_metering_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_metering_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_ELECTRICAL_MEASUREMENT: {
+        esp_zb_electrical_meas_cluster_cfg_t c = {.measured_type = 0};
+        al = server ? esp_zb_electrical_meas_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        if (server && al) {
+            /* Give the hub real-looking AC readings to poll/report (kept updated while joined). */
+            uint16_t v = 2300, i = 0; /* 230.0 V (÷10), 0 A until switched on */
+            esp_zb_electrical_meas_cluster_add_attr(al, ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSVOLTAGE_ID, &v);
+            esp_zb_electrical_meas_cluster_add_attr(al, ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSCURRENT_ID, &i);
+        }
+        return esp_zb_cluster_list_add_electrical_meas_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_DIAGNOSTICS: {
+        esp_zb_diagnostics_cluster_cfg_t c = {};
+        al = server ? esp_zb_diagnostics_cluster_create(&c) : esp_zb_zcl_attr_list_create(id);
+        return esp_zb_cluster_list_add_diagnostics_cluster(list, al, role);
+    }
+    case ESP_ZB_ZCL_CLUSTER_ID_OTA_UPGRADE:
+        /* Deliberately not exposed: a real OTA client would invite the hub to push another vendor's
+         * firmware image at this device. The profile keeps the ID so the operator sees it was skipped. */
+        ESP_LOGW(TAG, "Cluster 0x0019 (OTA) in profile is NOT exposed on purpose (would solicit vendor firmware)");
+        return ESP_OK;
+    default:
+        if (id >= 0xFC00) {
+            return esp_zb_cluster_list_add_custom_cluster(list, esp_zb_zcl_attr_list_create(id), role);
+        }
+        return ESP_ERR_NOT_SUPPORTED; /* standard cluster without a constructor here */
+    }
 }
 
 static esp_err_t register_endpoint(const wb_profile_t *p)
@@ -607,13 +744,11 @@ static esp_err_t register_endpoint(const wb_profile_t *p)
                             TAG, "add identify");
     }
     for (int i = 0; i < p->extra_in_count; ++i) {
-        esp_err_t e = esp_zb_cluster_list_add_custom_cluster(clusters, esp_zb_zcl_attr_list_create(p->extra_in[i]),
-                                                             ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+        esp_err_t e = add_profile_cluster(clusters, p->extra_in[i], ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
         if (e != ESP_OK) ESP_LOGW(TAG, "Could not add server cluster 0x%04x: %s", p->extra_in[i], esp_err_to_name(e));
     }
     for (int i = 0; i < p->extra_out_count; ++i) {
-        esp_err_t e = esp_zb_cluster_list_add_custom_cluster(clusters, esp_zb_zcl_attr_list_create(p->extra_out[i]),
-                                                             ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE);
+        esp_err_t e = add_profile_cluster(clusters, p->extra_out[i], ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE);
         if (e != ESP_OK) ESP_LOGW(TAG, "Could not add client cluster 0x%04x: %s", p->extra_out[i], esp_err_to_name(e));
     }
 
@@ -645,6 +780,7 @@ static void zigbee_task(void *arg)
     (void)arg;
     const wb_profile_t *p = wb_profile_get();
 
+    wb_zb_apply_relay_config();
     esp_zb_overall_network_size_set(CONFIG_WB_NETWORK_SIZE);
 
     esp_zb_cfg_t cfg = {

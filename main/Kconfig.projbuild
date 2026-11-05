@@ -143,6 +143,20 @@ menu "WiserBridge Router"
             int "Hold button this long to request network reset (seconds)"
             range 5 30
             default 10
+
+        config WB_RELAY_GPIO
+            int "On/Off output GPIO driven by the plug's On/Off cluster, -1 = none (log only)"
+            range -1 30
+            default 0
+
+        config WB_RELAY_ACTIVE_LOW
+            bool "On/Off output is active-low"
+            default n
+
+        config WB_PLUG_REPORT_S
+            int "Fake-plug metering report interval while joined (seconds, 0 = off)"
+            range 0 3600
+            default 60
     endmenu
 
 endmenu

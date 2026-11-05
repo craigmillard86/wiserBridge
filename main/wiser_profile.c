@@ -19,6 +19,8 @@ static const char *TAG = "WB_PROFILE";
 #define NVS_KEY_EPID      "epid"
 #define NVS_KEY_CHMASK    "chmask"
 #define NVS_KEY_TCLK      "tclk"
+#define NVS_KEY_RLYGPIO   "rlygpio"
+#define NVS_KEY_RLYINV    "rlyinv"
 #define PROFILE_MAGIC     0x57425031u /* "WBP1" */
 
 typedef struct {
@@ -300,4 +302,30 @@ esp_err_t wb_opt_set_tclk_required(int v)
 {
     int8_t b = (int8_t)v;
     return nvs_set_blob_key(NVS_KEY_TCLK, (v < 0) ? NULL : &b, sizeof(b));
+}
+
+int wb_opt_get_relay_gpio(void)
+{
+    int16_t v;
+    if (!nvs_get_blob_key(NVS_KEY_RLYGPIO, &v, sizeof(v))) return WB_RELAY_GPIO_UNSET;
+    return v;
+}
+
+esp_err_t wb_opt_set_relay_gpio(int gpio)
+{
+    int16_t v = (int16_t)gpio;
+    return nvs_set_blob_key(NVS_KEY_RLYGPIO, (gpio == WB_RELAY_GPIO_UNSET) ? NULL : &v, sizeof(v));
+}
+
+int wb_opt_get_relay_active_low(void)
+{
+    int8_t v;
+    if (!nvs_get_blob_key(NVS_KEY_RLYINV, &v, sizeof(v))) return -1;
+    return v;
+}
+
+esp_err_t wb_opt_set_relay_active_low(int v)
+{
+    int8_t b = (int8_t)v;
+    return nvs_set_blob_key(NVS_KEY_RLYINV, (v < 0) ? NULL : &b, sizeof(b));
 }

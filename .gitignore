@@ -14,3 +14,6 @@ __pycache__/
 captures/
 logs/
 release/*.bin
+
+# Captured device fingerprints hold a real device IEEE - keep out of git
+fingerprints/*.captured.json

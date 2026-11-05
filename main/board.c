@@ -45,6 +45,41 @@ esp_err_t wb_board_rf_init(void)
     return ESP_OK;
 }
 
+static bool s_relay_on = false;
+static int s_relay_gpio = -1;        /* resolved pin, -1 = none/log-only */
+static bool s_relay_active_low = WB_RELAY_ACTIVE_LOW_DEFAULT;
+
+void wb_board_relay_configure(int gpio, bool active_low)
+{
+    if (s_relay_gpio >= 0 && s_relay_gpio != gpio) {
+        gpio_set_level(s_relay_gpio, s_relay_active_low ? 1 : 0); /* release old pin to off */
+    }
+    s_relay_gpio = gpio;
+    s_relay_active_low = active_low;
+    if (gpio >= 0) {
+        gpio_reset_pin(gpio);
+        gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
+        wb_board_relay_set(s_relay_on); /* re-assert current logical state on the new pin */
+        ESP_LOGI(TAG, "On/Off output on GPIO%d (active-%s)", gpio, active_low ? "low" : "high");
+    } else {
+        ESP_LOGI(TAG, "On/Off output: none (log only)");
+    }
+}
+
+void wb_board_relay_init(void) { wb_board_relay_configure(s_relay_gpio, s_relay_active_low); }
+
+void wb_board_relay_set(bool on)
+{
+    s_relay_on = on;
+    if (s_relay_gpio >= 0) {
+        gpio_set_level(s_relay_gpio, (on != s_relay_active_low) ? 1 : 0);
+    }
+}
+
+bool wb_board_relay_get(void) { return s_relay_on; }
+int wb_board_relay_gpio(void) { return s_relay_gpio; }
+bool wb_board_relay_active_low(void) { return s_relay_active_low; }
+
 const char *wb_board_antenna_str(void)
 {
 #if CONFIG_WB_ANT_SELECT_GPIO < 0

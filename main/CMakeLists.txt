@@ -3,6 +3,7 @@ idf_component_register(
         "main.c"
         "board.c"
         "zigbee_router.c"
+        "aps_inspect.c"
         "diagnostics.c"
         "diag_logic.c"
         "wiser_profile.c"

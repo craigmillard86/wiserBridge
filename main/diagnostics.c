@@ -937,7 +937,15 @@ static struct {
     char json[IV_JSON_LEN];
     size_t len;
     bool first_ep;
+    bool se_phase; /* true while the manufacturer-specific (Schneider) Basic read is outstanding */
 } s_iv;
+
+/* Schneider Electric's Zigbee manufacturer code, from public sources (zigbee-herdsman manufacturerCode.ts).
+ * Used only to *ask* a device for its manufacturer-specific Basic attributes; the Wiser hub reads exactly
+ * these (0xE007 ProductIdentifier, 0xE009 ProductModel) from every new device before deciding to keep it.
+ * 0xE004 (device serial number) is deliberately not read: it is per-device and must never be copied. */
+#define SE_MANUF_CODE 0x105E
+static uint16_t s_se_attrs[] = {0xE007, 0xE009, 0xE008, 0xE00A, 0xE00B, 0xE001, 0xE002};
 
 static void iv_append(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void iv_append(const char *fmt, ...)
@@ -964,9 +972,34 @@ static void iv_read_timeout(uint8_t param)
 {
     (void)param;
     if (s_op != OP_INTERVIEW) return;
+    if (s_iv.se_phase) {
+        printf("  Manufacturer-specific (0x%04x) Basic read timed out\n", SE_MANUF_CODE);
+        iv_append(",\"schneider_basic_attributes\":\"timeout\"");
+        iv_finish("ok (manufacturer-specific read timed out)");
+        return;
+    }
     printf("  Basic cluster read timed out\n");
     iv_append(",\"basic_attributes\":\"timeout\"");
     iv_finish("basic read timed out");
+}
+
+static void iv_read_se_basic(void)
+{
+    esp_zb_zcl_read_attr_cmd_t cmd = {
+        .zcl_basic_cmd = {.dst_addr_u.addr_short = s_iv.addr, .dst_endpoint = s_iv.basic_ep,
+                          .src_endpoint = wb_profile_get()->endpoint},
+        .address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
+        .clusterID = ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+        .manuf_specific = 1,
+        .manuf_code = SE_MANUF_CODE,
+        .attr_number = sizeof(s_se_attrs) / sizeof(s_se_attrs[0]),
+        .attr_field = s_se_attrs,
+    };
+    s_iv.se_phase = true;
+    printf("  Reading manufacturer-specific Basic attributes (code 0x%04x: E007 ProductIdentifier, E009 ProductModel, ...) "
+           "from endpoint %u...\n", SE_MANUF_CODE, s_iv.basic_ep);
+    esp_zb_zcl_read_attr_cmd_req(&cmd);
+    esp_zb_scheduler_alarm(iv_read_timeout, 0, READ_ATTR_TIMEOUT_MS);
 }
 
 static void iv_read_basic(void)
@@ -1104,8 +1137,13 @@ void wb_diag_on_read_attr_resp(const esp_zb_zcl_cmd_read_attr_resp_message_t *ms
         return;
     }
     esp_zb_scheduler_alarm_cancel(iv_read_timeout, 0);
-    printf("  Basic cluster attributes:\n");
-    iv_append(",\"basic_attributes\":{");
+    if (s_iv.se_phase) {
+        printf("  Manufacturer-specific Basic attributes (code 0x%04x):\n", SE_MANUF_CODE);
+        iv_append(",\"schneider_manufacturer_code\":\"0x%04x\",\"schneider_basic_attributes\":{", SE_MANUF_CODE);
+    } else {
+        printf("  Basic cluster attributes:\n");
+        iv_append(",\"basic_attributes\":{");
+    }
     bool first = true;
     for (esp_zb_zcl_read_attr_resp_variable_t *v = msg->variables; v; v = v->next) {
         const esp_zb_zcl_attribute_t *a = &v->attribute;
@@ -1136,6 +1174,10 @@ void wb_diag_on_read_attr_resp(const esp_zb_zcl_cmd_read_attr_resp_message_t *ms
         }
     }
     iv_append("}");
+    if (!s_iv.se_phase) {
+        iv_read_se_basic(); /* second pass: the attributes the Wiser hub actually checks */
+        return;
+    }
     iv_finish("ok");
 }
 
