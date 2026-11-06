@@ -263,8 +263,16 @@ void wb_zb_apply_relay_config(void)
     wb_board_relay_configure(pin, active_low);
 }
 
-/* Keep the fake plug looking alive: refresh AC readings and re-report On/Off + current to the hub so
- * it is not marked unresponsive. Runs in the stack thread (from housekeeping), so no lock needed. */
+/* Keep the fake plug looking alive: refresh AC readings and re-assert On/Off. Runs in the stack
+ * thread (from housekeeping), so no lock needed.
+ *
+ * IMPORTANT: do NOT call esp_zb_zcl_report_attr_cmd_req() here. In esp-zigbee/ZBOSS 1.6.x that
+ * helper asserts in zcl_general_commands.c (abort -> panic -> reboot loop) when it is used to push
+ * an unsolicited report for an attribute that has no active reporting record, which is the case for
+ * every attribute until the hub sends Configure Reporting. The correct, crash-free mechanism is to
+ * update the attribute value with esp_zb_zcl_set_attribute_val(..., check=false): if the hub has
+ * configured reporting for that attribute, the stack emits the report automatically; if it has not,
+ * the fresh value is simply returned on the next read. Either way we never hand-build the command. */
 static void plug_keepalive(void)
 {
     uint8_t ep = wb_profile_get()->endpoint;
@@ -275,16 +283,9 @@ static void plug_keepalive(void)
                                  ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSVOLTAGE_ID, &voltage, false);
     esp_zb_zcl_set_attribute_val(ep, ESP_ZB_ZCL_CLUSTER_ID_ELECTRICAL_MEASUREMENT, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
                                  ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSCURRENT_ID, &current, false);
-    esp_zb_zcl_report_attr_cmd_t rep = {
-        .zcl_basic_cmd = {.dst_addr_u.addr_short = 0x0000, .dst_endpoint = ep, .src_endpoint = ep},
-        .address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
-        .clusterID = ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-        .attributeID = ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-    };
-    esp_zb_zcl_report_attr_cmd_req(&rep);
-    rep.clusterID = ESP_ZB_ZCL_CLUSTER_ID_ELECTRICAL_MEASUREMENT;
-    rep.attributeID = ESP_ZB_ZCL_ATTR_ELECTRICAL_MEASUREMENT_RMSCURRENT_ID;
-    esp_zb_zcl_report_attr_cmd_req(&rep);
+    uint8_t onoff = on ? 1 : 0; /* re-assert On/Off; auto-reports iff the hub configured reporting */
+    esp_zb_zcl_set_attribute_val(ep, ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+                                 ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, &onoff, false);
 }
 
 static void housekeeping_cb(uint8_t param)
