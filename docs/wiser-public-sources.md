@@ -163,3 +163,22 @@ New firmware: main/aps_inspect.*, relay in board.*, On/Off handler + plug_keepal
 zigbee_router.c, `relay`/`apslog` CLI, Kconfig WB_RELAY_GPIO/WB_RELAY_ACTIVE_LOW/WB_PLUG_REPORT_S.
 A single 802.15.4 radio = one Zigbee network only; Wi-Fi can run concurrently (coexistence, with
 the caveats in wifi-bridge-feasibility.md §6).
+
+## M5 + M4 together — TRVs parented to the C6, relayed to the hub (2026-11-05 ~19:25)
+
+Natural re-parenting test: the owner powered the plug (0x7798) OFF, then ON.
+
+* With the plug off, 7 of its end devices re-parented onto the C6 within ~2 min (C6 `children` 0 -> 7).
+  The C6 was then isolated from the hub (plug was its only uplink), so those TRVs were temporarily
+  cut off — expected, and why the plug was restored promptly.
+* With the plug back on, the C6 **retained 5 sleepy TRVs as children** (0x38e4, 0x917f, 0x6922,
+  0x72e8, 0x14f1; sleepy=YES) **and** regained an ACTIVE relayed route to the hub via the plug.
+* Confirmed end-to-end: `ping 0x0000` 7/8 replies ~50 ms, verdict **JOINED_MULTIHOP_VERIFIED**.
+
+Live path verified: **TRV -> C6 -> plug -> hub**. The C6 is a functioning Wiser range extender:
+it both parents real Wiser TRVs and relays their traffic to the hub. (RTT fell from multi-second at
+the mesh edge to ~50 ms once it carried children mid-mesh.)
+
+Milestones now: M1 build, M2 join (recognised identity), M3 persistence (restore from NVRAM),
+M4 multi-hop, M5 TRV-as-child all demonstrated. Remaining: M6 long-term soak (24 h / 7 day) and
+confirming the hub never drops the fake plug over time.
