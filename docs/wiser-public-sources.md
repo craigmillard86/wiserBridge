@@ -182,3 +182,24 @@ the mesh edge to ~50 ms once it carried children mid-mesh.)
 Milestones now: M1 build, M2 join (recognised identity), M3 persistence (restore from NVRAM),
 M4 multi-hop, M5 TRV-as-child all demonstrated. Remaining: M6 long-term soak (24 h / 7 day) and
 confirming the hub never drops the fake plug over time.
+
+## 2026-11-06 — Multi-hop proven (sniffer) and found antenna-dependent
+
+After fixing the keep-alive panic (see git history) the C6 was reset, removed from the app, and
+re-joined cleanly. In the far spot (~15 m, several walls, plug between C6 and hub) the uplink route
+would not form on the on-board **ceramic** antenna: the C6 faintly heard the hub's own broadcasts and
+recorded a dead **direct** route (`coord_nh=0x0000`) instead of relaying via the plug, so ping 0x0000
+was 0/N with continuous `NO_ROUTE_AVAILABLE`. The hub still reached the C6 (source-routed downlink and
+ZDO address/bind requests arrived), confirming a one-way (asymmetric) link, not a hub policy block.
+
+Fitting an **external U.FL antenna** (`CONFIG_WB_ANTENNA_EXTERNAL=y`, GPIO14 high) fixed it. Captured
+on the Wiser channel (16) with the second C6 running `sniffer/` and decoded with
+`tools/sniff_route_decode.py` (MAC+NWK headers are in the clear; command payloads are not):
+
+* Uplink  C6→hub: `C6 →64→ plug →91→ hub`, **0** direct C6→hub frames.
+* Downlink hub→C6: `hub →(source route)→ plug →90→ C6`, **0** direct hub→C6 frames.
+* Stability: 25-min hub-ping soak, 17/17 cycles 3/3 replies, ~45-60 ms, 0 drops.
+
+Conclusion: multi-hop hub↔plug↔C6 works and is stable with the external antenna; the Wiser hub
+source-routes to our third-party router fine. It is NOT a closed-ecosystem block and NOT a firmware
+bug — the limiter was antenna/link asymmetry driving a bad route choice on the ceramic antenna.

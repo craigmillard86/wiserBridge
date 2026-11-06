@@ -24,9 +24,16 @@ Legend: 🤖 automated (no hardware) · 🧪 bench (C6 only) · 🏠 needs the r
 | M1 | Firmware builds | 🤖🧪 | Builds for esp32c6 with no errors/warnings; boot banner + CLI work on the XIAO | **Passed 2026-11-05** (see verification-report.md) |
 | M2 | Generic Zigbee commissioning | 🏠 | `join` attempted against the Wiser hub; outcome A/B/B′/C recorded with verdict + log; no network ever formed | **Done 2026-11-05**: generic identity joined then REMOVED ~10 s (outcome B′, 3×); joined and RETAINED only with a recognised model identity (Heiman plug). See docs/wiser-public-sources.md |
 | M3 | Network persistence | 🏠 | After `reboot` and after a power-cycle: `START: network membership restored from NVRAM`, same PAN/short/channel, `JOINED_*` verdict, no re-commissioning | open |
-| M4 | Multi-hop routing | 🏠 | Test 4 below passes (relay next hop = WA104/plug, hub not a direct neighbour, ping to hub succeeds) — ideally confirmed by sniffer | **Verified 2026-11-05**: relay next hop = plug 0x7798 ACTIVE, hub not a neighbour, ping 0x0000 10/10, verdict JOINED_MULTIHOP_VERIFIED (path functional, stability TBD) |
+| M4 | Multi-hop routing | 🏠 | Test 4 below passes (relay next hop = WA104/plug, hub not a direct neighbour, ping to hub succeeds) — ideally confirmed by sniffer | **Verified 2026-11-06 (sniffer-confirmed, antenna-dependent).** With the external U.FL antenna: hub↔C6 relays entirely via the plug 0x7798 in BOTH directions — uplink C6→plug→hub (0 direct frames), downlink hub→(source-routed)→plug→C6 (0 direct frames); 25-min soak 17/17 cycles 3/3 replies, ~45-60 ms. **Caveat:** with the on-board **ceramic** antenna at 15 m / multiple walls the C6 faintly hears the hub and records a dead *direct* route (`coord_nh=0x0000`), so multi-hop is unreliable (flickers up after a rejoin, then `NO_ROUTE_AVAILABLE`). The external antenna is what makes the plug-relay route stick. See [[plug-keepalive-crash]] note + docs/wiser-public-sources.md. |
 | M5 | Wiser TRV support | 🏠 | ≥1 TRV listed by `children` (sleepy) with matching IEEE, TRV keeps reporting in the app, no other device disrupted | **Demonstrated 2026-11-05**: 5 sleepy TRVs became children of the C6 after the plug was power-cycled; relayed to hub (JOINED_MULTIHOP_VERIFIED, ping 7/8). See wiser-public-sources.md |
-| M6 | Reliability | 🏠 | Restart tests pass; `wb_health_report.py` all PASS for 24 h, then 7 days | open |
+| M6 | Reliability | 🏠 | Restart tests pass; `wb_health_report.py` all PASS for 24 h, then 7 days | partial: 25-min hub-ping soak clean (0 drops) with external antenna 2026-11-06; 24 h / 7 day still open |
+
+> **Antenna note (important for range).** The Seeed XIAO ESP32-C6 has an on-board ceramic antenna and a
+> U.FL connector. For a repeater placed where it can still faintly hear the hub but is out of reliable
+> direct range, fit an external U.FL antenna and build with `CONFIG_WB_ANTENNA_EXTERNAL=y` (menuconfig →
+> Board → "Use external U.FL antenna"). Without it the stack tends to record a dead *direct* route to the
+> hub instead of relaying via the plug. The default stays ceramic so boards with no external antenna
+> attached don't select a disconnected connector.
 
 ---
 
