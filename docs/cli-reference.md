@@ -28,6 +28,8 @@ Anything the SDK cannot provide is reported as unavailable — never invented.
 | `reboot` | Restart; keeps network membership |
 | `version` | Firmware/IDF version |
 | `log <tag\|*> <level>` | Runtime log level (`none/error/warn/info/debug`) |
+| `pinroute [on\|hard\|off\|status]` | *(experimental, changes stack behaviour)* `on`: route-cost policy `use_route_for_neighbour` (prefer an existing relayed route over a direct link to the hub). `hard`: also MAC-filter the hub's direct frames. Uses cert/test-grade SDK APIs. **Tested: did not help** — it chooses among existing routes and cannot create a missing route to the hub. `CONFIG_WB_PIN_HUB_ROUTE` applies `on` at every join (default off) |
+| `netkey` / `netkey confirm <code>` | *(only in builds with `CONFIG_WB_NETKEY_EXPORT=y`, default **off**)* Prints the joined network's key once so you can decrypt your own sniffer captures. Never enable in a build you distribute |
 
 Addresses can be given as short addresses (`0x1a2b`) or IEEE addresses (`00:12:4b:…`, resolved via
 the stack's address table).
@@ -43,4 +45,5 @@ the stack's address table).
 
 * Count of frames relayed for other devices, MAC retries, CCA failures.
 * Per-child poll timestamps or buffered-frame counts.
-* Network/link keys (deliberately never read).
+* Network/link keys (never read, except by the opt-in `netkey` diagnostic in a
+  `CONFIG_WB_NETKEY_EXPORT=y` build).

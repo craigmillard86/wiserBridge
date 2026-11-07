@@ -200,6 +200,49 @@ on the Wiser channel (16) with the second C6 running `sniffer/` and decoded with
 * Downlink hub→C6: `hub →(source route)→ plug →90→ C6`, **0** direct hub→C6 frames.
 * Stability: 25-min hub-ping soak, 17/17 cycles 3/3 replies, ~45-60 ms, 0 drops.
 
-Conclusion: multi-hop hub↔plug↔C6 works and is stable with the external antenna; the Wiser hub
+Conclusion at the time (**superseded — see the next section**): multi-hop hub↔plug↔C6 works and is stable with the external antenna; the Wiser hub
 source-routes to our third-party router fine. It is NOT a closed-ecosystem block and NOT a firmware
 bug — the limiter was antenna/link asymmetry driving a bad route choice on the ceramic antenna.
+
+## 2026-11-06 afternoon — uplink decays, routing loop, live-network incident
+
+**The uplink decayed.** After the clean 25-min soak, the C6's route to the hub aged out:
+`routes` showed `0x0000 0x0000 DISCOVERING MTO=no`, ping 0x0000 0/N, continuous
+`NLME NO_ROUTE_AVAILABLE`, while the hub's source-routed downlink still arrived. The Wiser hub is a
+**concentrator**: routers reach it via a many-to-one route learned from its MTORR broadcasts, and
+the hub sends those infrequently in a quiet network. The external antenna only helped transiently.
+esp-zigbee exposes **no API to install a route**, so `hub via plug` cannot be pinned; `pinroute`
+(route-cost policy `use_route_for_neighbour`, optionally MAC-filtering the hub) and a boot-time pin
+only choose among *existing* routes and left ping at 0/N. In a 20-min capture the C6 recovered once
+after a unicast NWK command from the plug (likely a route reply), not after an MTORR.
+
+**A plug↔C6 routing loop.** With the network key exported from our own C6 (opt-in
+`CONFIG_WB_NETKEY_EXPORT` build; key kept out of logs) the captures were decrypted. The C6 relays the
+hub's MTORR honestly at path cost 12–13, while the plug rates its own hub link at the worst cost (7).
+About 0.5 s after an MTORR the plug sometimes adopted the C6 as its many-to-one next hop (its first
+misrouted frames were MANY_TO_ONE_ROUTE_FAILURE reports), and the C6 sent the frames back — ping-pong
+until the radius expired. The loop also occurred with the pin disabled, so the pin did not cause it.
+The hub does answer the C6's route requests (route reply from the hub in ~250 ms).
+
+**Live-network incident.** At 12:22 the plug's branch was healthy (no route requests). By ~16:00 the
+C6 (~600 per 20 min), the plug and all six TRVs were flooding route requests for the hub, and several
+TRVs showed offline in the Wiser app. Actions: C6 silenced at 16:31 (held in the ROM bootloader,
+radio off); plug restarted (relayed for ~1 min, then stuck again); hub restarted ~16:54; C6 removed
+from the Wiser app ~17:10; plug restarted again.
+
+**Root cause found at the plug (~17:40, sniffer beside the hub):** a **one-way link**. The hub heard
+the plug (87 % of plug→hub frames acknowledged) and answered it (145 route replies + 108 MTORRs in
+2 min, ~1,700 source-routed frames for the plug's TRVs), but the plug almost never heard the hub, so
+it kept flooding route requests and its TRVs were cut off. The link was already rated cost 7 in the
+healthy 12:22 capture; interference near the plug (channel 16 = 2430 MHz, overlapping Wi-Fi ch 3–6)
+is suspected. All TRVs were reporting again by ~17:45.
+
+**Causation is not established.** The plug stayed stuck with the C6 silent, but the C6's afternoon of
+rejoins, reboots and route-request storm, and the loop, preceded it. The C6 has been kept off the
+live network since.
+
+**Where this leaves the project:** the hub accepts the C6 (with a recognised identity), relays to it
+and uses it as a TRV parent, but an edge-of-range C6 cannot hold a reliable uplink, and it must not be
+placed behind a marginal router where it can form a loop. Next steps, on a test network or a healthy
+plug↔hub link: place the C6 one hop from the hub; consider an auto-rejoin watchdog (risk: frequent
+rejoins); re-run the loop test with a strong plug↔hub link.

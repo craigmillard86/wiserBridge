@@ -8,11 +8,11 @@ Wiser Heat Hub ──► WA104 repeater ──► ESP32-C6 (this firmware) ─�
    (coordinator / trust centre)        (ordinary Zigbee router)       (sleepy end devices)
 ```
 
-> **Status: compatibility with the Wiser Heat Hub is UNVERIFIED.** The firmware is built,
-> bench-tested on a real XIAO ESP32-C6, and instrumented to *find out* whether the hub accepts a
-> generic router — and to produce useful evidence when it does not. Nothing here claims
-> multi-hop routing works with Wiser until you have run the tests in
-> [docs/multihop-testing.md](docs/multihop-testing.md).
+> **Status (2026-11-07): works on a real Wiser network, but NOT yet safe to leave on a live heating
+> system.** On the author's network the C6 joined and stayed joined, relayed hub traffic over two
+> hops (confirmed with a sniffer), and parented real Wiser TRVs. It was later **removed** after a
+> test session in which a branch of the mesh lost its route to the hub (see
+> [Tested evidence](#tested-evidence) below). Use a test network, or watch the system closely.
 
 This is **not a Drayton product** and does not pretend to be one. It joins your existing network as a
 standard router using standard Zigbee commissioning and security; it never forms its own network and
@@ -33,12 +33,63 @@ never acts as a coordinator.
 * Rich **USB serial diagnostics**: neighbour table (LQI/RSSI/cost/age), routing table, children,
   remote neighbour tables (`lqi`), hub reachability (`ping`), a multi-hop evidence report
   (`multihop`), a join-failure classifier, an event log and a machine-readable `HEALTH` line for
-  soak tests. Network keys are never read or printed.
+  soak tests. Network keys are never read or printed in a default build (an opt-in, Kconfig-gated
+  `netkey` diagnostic exists only for decrypting your own captures).
 * A device **`interview`** command (ZDO descriptors + Basic cluster) that can fingerprint the genuine
   WA104 *over the network* without modifying it, feeding a configurable compatibility profile.
 * A **separate passive sniffer firmware** + pcap converter for Wireshark.
 
 Wi-Fi is never started. Bluetooth is disabled.
+
+## Tested evidence
+
+Every result below comes from one real Drayton Wiser installation: a Wiser Heat Hub on channel 16, a
+Wiser smart plug and six TRVs. The hardware was a Seeed XIAO ESP32-C6 running this firmware, with a
+second C6 running `sniffer/` as a passive capture radio. The full logs are in
+[docs/wiser-public-sources.md](docs/wiser-public-sources.md) and the milestones are in
+[docs/multihop-testing.md](docs/multihop-testing.md).
+
+| | Milestone | Result | Evidence |
+|---|---|---|---|
+| M1 | Builds and runs | ✅ **Passed** 2026-11-05 | IDF v5.5.6, 0 errors and 0 warnings for both router and sniffer; host tests pass (75/75 C, 11/11 Python); bench checks on a real XIAO ([verification report](docs/verification-report.md)) |
+| M2 | Joins the Wiser hub | ✅ **Passed**, with a recognised identity | A generic router identity was joined and then **removed by the hub after about 10 s** (3 out of 3 attempts). With the Wiser smart plug's standard identity (HEIMAN `SmartPlug-EF-3.0`, mfr 0x120B, device 0x0051) it was **accepted and kept** |
+| M3 | Survives reboots | ✅ **Observed** | `JOINED (restored from NVRAM)` after an app reflash and reboots, with no re-commissioning |
+| M4 | Multi-hop hub ↔ plug ↔ C6 | ✅ **Shown, ⚠️ not stable** | `ping 0x0000` 10/10 via plug; sniffer shows 0 direct frames in either direction (uplink C6→plug→hub, downlink source-routed hub→plug→C6); 25-min soak 17/17 clean on an external U.FL antenna. The route then **decays** (see below) |
+| M5 | TRVs use the C6 as parent | ✅ **Demonstrated** 2026-11-05 | After a plug power-cycle, 5 sleepy TRVs stayed children of the C6. Traffic went TRV → C6 → plug → hub, with `ping 0x0000` 7/8 at about 50 ms and verdict `JOINED_MULTIHOP_VERIFIED` |
+| M6 | Long-term reliability | ❌ **Not passed** | Only the 25-minute clean soak; no 24 h or 7-day run. Testing was stopped by the incident below |
+| — | Works as a smart plug in the app | ✅ | Wiser app On/Off toggles drive a GPIO, and the hub reads back metering values |
+
+### What the tests revealed
+
+* **The hub decides who stays by device identity, not by Schneider attributes.** It reads the
+  manufacturer-specific Basic attributes 0xE007 and 0xE009 (mfr code 0x105E) on endpoints 1, 3, 5, 21, 6,
+  20 and 7. The real plug answers *unsupported* to these and is still kept. A router with an unknown
+  identity receives `Mgmt_Leave` about 10 s after joining.
+* **The Wiser hub is a concentrator.** A router can only reach it through a many-to-one route, which is
+  learned from the hub's periodic MTORR broadcasts. The C6's uplink worked after a fresh join and then
+  aged out (`NO_ROUTE_AVAILABLE`, ping 0/N) while the downlink kept working. The external antenna only
+  helped for a while. esp-zigbee has **no API to install a static route**, so the firmware cannot pin
+  `hub via plug`.
+* **A routing loop formed between the plug and the C6.** Decrypted captures show the C6 correctly
+  relaying the MTORR at path cost 12–13, while the plug rates its own hub link at the worst cost (7). In
+  that state the plug sometimes chose the C6 as its next hop to the hub, and frames bounced between the
+  two until their radius ran out.
+* **Live-network incident (2026-11-06).** During C6 testing the plug's TRV branch lost its route to
+  the hub, and several TRVs went offline in the app. The C6 was silenced and removed from the app; the
+  hub and the plug were restarted. Sniffing next to the hub then showed a **one-way link at the plug**:
+  the hub heard the plug and answered it, but the plug barely heard the hub. That link had already been
+  rated cost 7 before any of this testing. All TRVs came back the same evening. **It has not been
+  established whether the C6 caused the incident or only made it worse.** The C6 has stayed off the
+  live network since then.
+* Fixed along the way: a ZBOSS assertion that rebooted the C6 every ~60 s. The cause was calling
+  `esp_zb_zcl_report_attr_cmd_req()` on attributes the hub had never configured for reporting.
+
+### Not yet verified
+
+M6 soaks (24 h / 7 days); whether the hub eventually drops the impersonated plug; whether the uplink
+route can be kept alive (for example with an auto-rejoin watchdog, or by placing the C6 one hop from the
+hub); and whether the C6 can share a branch with a marginal router without forming a loop. This
+needs a re-test on a healthy plug↔hub link, ideally on a separate test network.
 
 ## Repository layout
 
@@ -83,8 +134,11 @@ Wi-Fi is never started. Bluetooth is disabled.
 
 ## Limitations (read before relying on it for heating)
 
-* Wiser hub acceptance of a non-Drayton router is **unknown**. Possible outcomes are documented:
-  joins and is recognised; joins but is not shown in the app (may still route); or refused.
+* The hub only keeps routers whose identity it recognises. A generic identity is removed after about
+  10 s. Presenting another product's identity (the Heiman plug) works, but it impersonates a real
+  device model, and the hub may treat it differently in future firmware.
+* Uplink to the hub depends on many-to-one routes that the firmware cannot pin, so multi-hop
+  can decay at the edge of range (see [Tested evidence](#tested-evidence)).
 * The public SDK exposes no relayed-frame counters, MAC retry counters or per-child poll statistics.
   Where proof needs those, use a second sniffer radio.
 * One C6 cannot be a router and a sniffer at the same time.
