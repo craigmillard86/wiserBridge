@@ -29,6 +29,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#if CONFIG_WB_PIN_HUB_ROUTE
+#include "test/esp_zigbee_test_utils.h" /* esp_zb_cert_set_route_cost_policy (pin hub route) */
+#endif
 #include "wiser_profile.h"
 
 static const char *TAG = "WB_ZB";
@@ -356,6 +359,13 @@ static void on_joined(const char *how)
     ST_UNLOCK();
     set_state(WB_NS_JOINED);
     wb_diag_log_network(how);
+#if CONFIG_WB_PIN_HUB_ROUTE
+    /* Re-assert on every (re)join: prefer an existing relayed route to a neighbour
+     * (the hub) over the faint direct link. Already in Zigbee context (signal
+     * handler), so no esp_zb lock is needed. Cert/test-grade API. */
+    esp_err_t pin = esp_zb_cert_set_route_cost_policy(false, false, true);
+    wb_diag_event("PIN HUB ROUTE: use_route_for_neighbour=1 (%s)", esp_err_to_name(pin));
+#endif
 }
 
 void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)

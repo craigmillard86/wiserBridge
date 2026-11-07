@@ -21,9 +21,11 @@
 #include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "esp_zigbee_secur.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#include "test/esp_zigbee_test_utils.h" /* cert/test APIs: route cost policy, MAC visibility (pinroute) */
 #include "wiser_profile.h"
 #include "zigbee_router.h"
 
@@ -47,6 +49,93 @@ static int cmd_children(int argc, char **argv) { wb_diag_cmd_children(); return 
 static int cmd_diagnostics(int argc, char **argv) { wb_diag_cmd_diagnostics(); return 0; }
 static int cmd_events(int argc, char **argv) { wb_diag_cmd_events(); return 0; }
 static int cmd_multihop(int argc, char **argv) { wb_diag_cmd_multihop(); return 0; }
+
+#if CONFIG_WB_NETKEY_EXPORT
+/* DIAGNOSTIC ONLY (Kconfig-gated, default off): print the active network key once so
+ * the owner's own sniffer captures can be decrypted. Two-step like 'reset'. The key is
+ * printed with printf on one marked line only - never via ESP_LOG or the event log. */
+static uint32_t s_netkey_code;
+static int64_t s_netkey_code_expiry_us;
+
+static int cmd_netkey(int argc, char **argv)
+{
+    int64_t now = esp_timer_get_time();
+    if (argc >= 3 && strcmp(argv[1], "confirm") == 0) {
+        uint32_t code = (uint32_t)strtoul(argv[2], NULL, 10);
+        if (!s_netkey_code || now > s_netkey_code_expiry_us || code != s_netkey_code) {
+            printf("REFUSED: wrong or expired code. Run 'netkey' again.\n");
+            s_netkey_code = 0;
+            return 1;
+        }
+        s_netkey_code = 0;
+        uint8_t key[16];
+        if (!wb_zb_lock(3000)) { printf("ERROR: stack busy\n"); return 1; }
+        esp_err_t e = esp_zb_secur_primary_network_key_get(key);
+        wb_zb_unlock();
+        if (e != ESP_OK) { printf("netkey: unavailable (%s)\n", esp_err_to_name(e)); return 1; }
+        printf("NETKEY-EXPORT ");
+        for (int i = 0; i < 16; i++) printf("%02x", key[i]);
+        printf("\n");
+        memset(key, 0, sizeof(key));
+        return 0;
+    }
+    s_netkey_code = 1000 + (esp_random() % 9000);
+    s_netkey_code_expiry_us = now + 30LL * 1000 * 1000;
+    printf("WARNING: this prints the Zigbee NETWORK KEY of the joined network.\n"
+           "Anyone who sees it can decrypt that network's traffic. Use only to decrypt your\n"
+           "own captures, and capture it straight to a private file, not a shared log.\n"
+           "To proceed within 30 s type:  netkey confirm %" PRIu32 "\n", s_netkey_code);
+    return 0;
+}
+#endif
+
+/* Experimental: force the stack to prefer a relayed (multi-hop) route to the
+ * hub instead of a faint direct link. The hub (coordinator) short address is
+ * fixed to 0x0000 by the Zigbee spec. Uses certification/test-grade APIs from
+ * test/esp_zigbee_test_utils.h ("not stable, may change") - they touch only
+ * THIS node's stack; the Wiser hub and other devices are never modified.
+ *   on     - lever C: prefer an existing route even when the dest is a neighbour
+ *   hard   - lever C + lever A: also MAC-filter the hub's direct frames so the
+ *            C6 cannot record a direct route (downlinks relayed by the plug
+ *            arrive with the plug as MAC source, so they still get through)
+ *   off    - revert both
+ *   status - show what this node currently has applied */
+static const char *s_pinroute_state = "off";
+
+static int cmd_pinroute(int argc, char **argv)
+{
+    const char *mode = argc > 1 ? argv[1] : "status";
+
+    if (!strcmp(mode, "status")) {
+        printf("pinroute: %s (hub=0x0000)\n", s_pinroute_state);
+        return 0;
+    }
+
+    bool want_policy, want_filter;
+    if (!strcmp(mode, "on"))        { want_policy = true;  want_filter = false; }
+    else if (!strcmp(mode, "hard")) { want_policy = true;  want_filter = true;  }
+    else if (!strcmp(mode, "off"))  { want_policy = false; want_filter = false; }
+    else { printf("usage: pinroute [on|hard|off|status]\n"); return 1; }
+
+    if (!wb_zb_lock(3000)) { printf("ERROR: stack busy\n"); return 1; }
+    esp_err_t e = esp_zb_cert_set_route_cost_policy(false /*keep cost updating*/,
+                                                    false /*no tx delay*/,
+                                                    want_policy /*use_route_for_neighbor*/);
+    if (want_filter) {
+        esp_zb_mac_add_invisible_short(0x0000);
+    } else {
+        esp_zb_mac_remove_invisible_short(0x0000);
+    }
+    wb_zb_unlock();
+
+    if (e != ESP_OK) {
+        printf("pinroute: route_cost_policy failed (%s)\n", esp_err_to_name(e));
+        return 1;
+    }
+    s_pinroute_state = !strcmp(mode, "hard") ? "hard" : (!strcmp(mode, "on") ? "on" : "off");
+    printf("pinroute: %s applied. Watch 'multihop' + 'ping 0x0000'.\n", s_pinroute_state);
+    return 0;
+}
 
 static int cmd_health(int argc, char **argv)
 {
@@ -357,6 +446,10 @@ esp_err_t wb_cli_start(void)
     REGISTER("diagnostics", cmd_diagnostics, NULL, "Join/commissioning counters and failure classification");
     REGISTER("events", cmd_events, NULL, "Recent event log (joins, leaves, children, NWK status)");
     REGISTER("multihop", cmd_multihop, NULL, "Evidence of routing via an intermediate router to the hub");
+#if CONFIG_WB_NETKEY_EXPORT
+    REGISTER("netkey", cmd_netkey, "[confirm <code>]", "DIAGNOSTIC: print the network key once (for decrypting your own captures)");
+#endif
+    REGISTER("pinroute", cmd_pinroute, "[on|hard|off|status]", "Experimental: force a relayed route to the hub instead of a faint direct link");
     REGISTER("health", cmd_health, NULL, "Print one machine-readable HEALTH line");
     REGISTER("join", cmd_join, NULL, "Join an existing network (only when NOT joined; never forms a network)");
     REGISTER("scan", cmd_scan, "[force]", "Active beacon scan (refused while joined unless 'force')");

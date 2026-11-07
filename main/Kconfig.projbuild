@@ -125,6 +125,25 @@ menu "WiserBridge Router"
             bool "Use external U.FL antenna (antenna select HIGH)"
             default n
 
+        config WB_NETKEY_EXPORT
+            bool "DIAGNOSTIC ONLY: allow exporting the network key for sniffer decryption"
+            default n
+            help
+                Adds the 'netkey' CLI command, which prints the active network key once,
+                on a single line, after a one-time confirmation code. It exists only so
+                that your own sniffer captures can be decrypted in Wireshark. Never enable
+                this in a build you distribute; anyone with serial access to the device
+                could read the key of the network it has joined.
+
+        config WB_PIN_HUB_ROUTE
+            bool "Experimental: prefer a relayed route to the hub over a faint direct link"
+            default n
+            help
+                Applies lever C (esp_zb_cert_set_route_cost_policy use_route_for_neighbour)
+                on every (re)join, so a healthy route via the plug is not abandoned for a
+                faint direct link to the hub. Uses a certification/test-grade API that may
+                change between SDK versions. Also toggleable at runtime with 'pinroute'.
+
         config WB_LED_GPIO
             int "Status LED GPIO, -1 = none"
             range -1 30
