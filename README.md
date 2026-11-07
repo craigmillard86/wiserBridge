@@ -57,7 +57,7 @@ second C6 running `sniffer/` as a passive capture radio. The full logs are in
 | M3 | Survives reboots | ✅ **Observed** | `JOINED (restored from NVRAM)` after an app reflash and reboots, with no re-commissioning |
 | M4 | Multi-hop hub ↔ plug ↔ C6 | ✅ **Shown, ⚠️ not stable** | `ping 0x0000` 10/10 via plug; sniffer shows 0 direct frames in either direction (uplink C6→plug→hub, downlink source-routed hub→plug→C6); 25-min soak 17/17 clean on an external U.FL antenna. The route then **decays** (see below) |
 | M5 | TRVs use the C6 as parent | ✅ **Demonstrated** 2026-11-05 | After a plug power-cycle, 5 sleepy TRVs stayed children of the C6. Traffic went TRV → C6 → plug → hub, with `ping 0x0000` 7/8 at about 50 ms and verdict `JOINED_MULTIHOP_VERIFIED` |
-| M6 | Long-term reliability | ❌ **Not passed** | Only the 25-minute clean soak; no 24 h or 7-day run. Testing was stopped by the incident below |
+| M6 | Long-term reliability | ✅ **24 h passed** (owner-reported), 7-day open | Rejoined 2026-11-06 about 18:18 next to the plug, with the hub reachable (`ping 0x0000` 3/3 and 5/5, about 30–45 ms) and 2 sleepy TRVs as children by 18:50. Since then it has run more than 24 h on a phone-charger supply, with the C6 and all TRVs online in the Wiser app. No serial log was attached, because opening USB-JTAG reboots the board |
 | — | Works as a smart plug in the app | ✅ | Wiser app On/Off toggles drive a GPIO, and the hub reads back metering values |
 
 ### What the tests revealed
@@ -75,22 +75,22 @@ second C6 running `sniffer/` as a passive capture radio. The full logs are in
   relaying the MTORR at path cost 12–13, while the plug rates its own hub link at the worst cost (7). In
   that state the plug sometimes chose the C6 as its next hop to the hub, and frames bounced between the
   two until their radius ran out.
-* **Live-network incident (2026-11-06).** During C6 testing the plug's TRV branch lost its route to
+* **Live-network incident (2026-11-06, before the successful run).** During C6 testing the plug's TRV branch lost its route to
   the hub, and several TRVs went offline in the app. The C6 was silenced and removed from the app; the
   hub and the plug were restarted. Sniffing next to the hub then showed a **one-way link at the plug**:
   the hub heard the plug and answered it, but the plug barely heard the hub. That link had already been
   rated cost 7 before any of this testing. All TRVs came back the same evening. **It has not been
-  established whether the C6 caused the incident or only made it worse.** The C6 has stayed off the
-  live network since then.
+  established whether the C6 caused the incident or only made it worse.** The C6 was then rejoined that
+  evening at a better spot, next to the plug, and has run for 24 h+ since (M6 above).
 * Fixed along the way: a ZBOSS assertion that rebooted the C6 every ~60 s. The cause was calling
   `esp_zb_zcl_report_attr_cmd_req()` on attributes the hub had never configured for reporting.
 
 ### Not yet verified
 
-M6 soaks (24 h / 7 days); whether the hub eventually drops the impersonated plug; whether the uplink
-route can be kept alive (for example with an auto-rejoin watchdog, or by placing the C6 one hop from the
-hub); and whether the C6 can share a branch with a marginal router without forming a loop. This
-needs a re-test on a healthy plug↔hub link, ideally on a separate test network.
+A 7-day soak, and a 24 h run measured by `HEALTH` logs rather than reported from the app. Also
+unverified: whether the hub eventually drops the impersonated plug; whether multi-hop holds at the far,
+edge-of-range spot (the 24 h run was next to the plug); and whether the C6 can share a branch with a
+marginal router without forming a loop.
 
 ## Repository layout
 

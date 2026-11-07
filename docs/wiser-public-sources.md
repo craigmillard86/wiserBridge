@@ -246,3 +246,20 @@ and uses it as a TRV parent, but an edge-of-range C6 cannot hold a reliable upli
 placed behind a marginal router where it can form a loop. Next steps, on a test network or a healthy
 plug↔hub link: place the C6 one hop from the hub; consider an auto-rejoin watchdog (risk: frequent
 rejoins); re-run the loop test with a strong plug↔hub link.
+
+## 2026-11-06 evening → 2026-11-07 — rejoined beside the plug, 24 h+ run
+
+After the incident the C6 was rejoined (~18:18) with the plug identity, placed next to the plug
+rather than at the far, edge-of-range spot. From `logs/post_join.log`, `c6_at_plugspot*.log` and
+`children_check.log`:
+
+* `HEALTH … state=JOINED … verdict=JOINED_COORDINATOR_REACHABLE`. `ping 0x0000` returned 3/3
+  (27–33 ms) and then 5/5 (37–46 ms). The hub immediately read On/Off and metering, treating the C6 as
+  a plug.
+* By 18:50, two sleepy TRVs (0x6922, 0x38e4) had chosen the C6 as their parent.
+
+It was then moved to a phone-charger supply (no serial access). On **2026-11-07 the owner reported
+it had run for over 24 h** with the C6 and all TRVs online in the Wiser app, and no recurrence of the
+afternoon's route-request storm. This is owner-reported; no HEALTH log covers the period. Opening the
+USB-JTAG port would reboot the board, so the next measured check should be a single `health` +
+`multihop` read at the end of a soak, or a passive sniffer capture.
