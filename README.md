@@ -8,12 +8,13 @@ Wiser Heat Hub ──► WA104 repeater ──► ESP32-C6 (this firmware) ─�
    (coordinator / trust centre)        (ordinary Zigbee router)       (sleepy end devices)
 ```
 
-> **Status (2026-11-07): working on a real Wiser network.** The C6 joins the Wiser Heat Hub and stays
-> joined. It shows in the Wiser app as a smart plug, relays hub traffic over two hops (confirmed with a
-> sniffer) and parents real Wiser TRVs. Since rejoining on the evening of 2026-11-06 it has run on the
-> live heating network for **over 24 h with all TRVs reporting**. That result is reported by the owner;
-> no serial log covers it. Read the earlier [live-network incident](#tested-evidence) before deploying,
-> and place the C6 with a solid link to its parent router.
+> **Status (2026-11-07): working on a real Wiser network.** Two ESP32-C6 boards running this firmware
+> are joined to the Wiser Heat Hub as routers and show in the Wiser app as smart plugs. They relay hub
+> traffic over multiple hops and act as parent to real Wiser TRVs. The first has run on the live heating
+> network for **over 24 h with all TRVs reporting** (owner-reported). A 10-minute sniffer capture on
+> 2026-11-07 measured both routers relaying cleanly, with no route-request flooding. Read the earlier
+> [live-network incident](#tested-evidence) before deploying, and give each C6 a solid link to its
+> parent router.
 
 This is **not a Drayton product** and does not pretend to be one. It joins your existing network as a
 standard router using standard Zigbee commissioning and security; it never forms its own network and
@@ -57,7 +58,7 @@ second C6 running `sniffer/` as a passive capture radio. The full logs are in
 | M3 | Survives reboots | ✅ **Observed** | `JOINED (restored from NVRAM)` after an app reflash and reboots, with no re-commissioning |
 | M4 | Multi-hop hub ↔ plug ↔ C6 | ✅ **Passed** 2026-11-06 | `ping 0x0000` 10/10 via the plug, verdict `JOINED_MULTIHOP_VERIFIED`. The sniffer shows 0 direct frames in either direction (uplink C6→plug→hub, downlink source-routed hub→plug→C6). The C6 stayed routed through the plug for a sustained period (including a clean 25-min ping soak, 17/17) until the stack switched to a direct route to the hub once that became the better path. That switch is normal Zigbee route selection. At the far edge-of-range spot, the direct route it chose was too weak to hold (see below) |
 | M5 | TRVs use the C6 as parent | ✅ **Demonstrated** 2026-11-05 | After a plug power-cycle, 5 sleepy TRVs stayed children of the C6. Traffic went TRV → C6 → plug → hub, with `ping 0x0000` 7/8 at about 50 ms and verdict `JOINED_MULTIHOP_VERIFIED` |
-| M6 | Long-term reliability | ✅ **24 h passed** (owner-reported), 7-day open | Rejoined 2026-11-06 about 18:18 next to the plug, with the hub reachable (`ping 0x0000` 3/3 and 5/5, about 30–45 ms) and 2 sleepy TRVs as children by 18:50. Since then it has run more than 24 h on a phone-charger supply, with the C6 and all TRVs online in the Wiser app. No serial log was attached, because opening USB-JTAG reboots the board |
+| M6 | Long-term reliability | ✅ **24 h passed** (owner-reported, then checked with a sniffer), 7-day open | The XIAO rejoined on 2026-11-06 about 18:18 next to the plug, with the hub reachable (`ping 0x0000` 3/3 and 5/5, about 30–45 ms) and 2 sleepy TRVs as children by 18:50. Since then it has run more than 24 h on a phone-charger supply, with all TRVs online in the Wiser app. A 10-minute capture on 2026-11-07 confirmed it was still on the same short address 0x2c3c, which means no rejoin, and was healthy (see [Live capture](#live-capture-2026-11-07)) |
 | — | Works as a smart plug in the app | ✅ | Wiser app On/Off toggles drive a GPIO, and the hub reads back metering values |
 
 ### What the tests revealed
@@ -85,6 +86,30 @@ second C6 running `sniffer/` as a passive capture radio. The full logs are in
 * Fixed along the way: a ZBOSS assertion that rebooted the C6 every ~60 s. The cause was calling
   `esp_zb_zcl_report_attr_cmd_req()` on attributes the hub had never configured for reporting.
 
+### Live capture, 2026-11-07
+
+This is a 10-minute passive capture on channel 16, from a third C6 running `sniffer/` placed next to the
+XIAO. It was decoded with `tools/sniff_device_summary.py`, which reads only the clear-text MAC and NWK
+headers. Each router was identified by the IEEE address in its NWK frames.
+
+| Node | Device | Next hop to hub | Frames sent | Frames relayed for others | MAC retransmits | Route requests |
+|---|---|---|---|---|---|---|
+| 0x2c3c | **C6 router #1** (XIAO) | hub, direct (191/191) | 231 | **654** | 3 % | 0 |
+| 0x578f | **C6 router #2** (the previous sniffer board, converted to a router on 2026-11-06) | hub, direct (189) | 229 | **522** | <1 % | 0 |
+| 0x7798 | Wiser smart plug (Heiman) | hub, direct | 121 | 172 | 0 % | 0 |
+
+* **Four TRVs use C6 #1 as their parent:** 0x917f, 0x38e4, 0x6922 and 0x7183. Each sent about 105
+  frames in the 10 minutes, and C6 #1 forwarded them to the hub. The hub's replies were source-routed
+  back down to each TRV via **hub → C6 #2 → C6 #1 → TRV**.
+* **The hub's traffic to C6 #1 goes via C6 #2.** That is a multi-hop path made only of WiserBridge
+  routers.
+* **Together the two C6s relayed about 1,180 frames in 10 minutes,** about 7× as many as the real plug.
+* **Only normal housekeeping from every router.** Each router sent only link-status broadcasts, about
+  one every 15 s, and **no route requests**. During the 2026-11-06 incident, C6 #1 had sent about 600 in
+  20 minutes.
+* The sniffer sat next to C6 #1 and heard the hub only faintly (−96 dBm). The hub's own frame counts are
+  therefore undercounts.
+
 ### Not yet verified
 
 A 7-day soak, and a 24 h run measured by `HEALTH` logs rather than reported from the app. Also
@@ -104,7 +129,7 @@ marginal router without forming a loop.
 | `main/serial_cli.c` | Serial command interface |
 | `main/board.c` | XIAO RF switch, status LED, BOOT button |
 | `sniffer/` | Separate passive IEEE 802.15.4 sniffer firmware |
-| `tools/` | Build script, serial monitor/logger, health report, pcap converter, fingerprint tools |
+| `tools/` | Build script, serial monitor/logger, health report, pcap converter and decoders (`sniff_route_decode.py`, `sniff_device_summary.py`), fingerprint tools |
 | `tests/` | Host C unit tests + Python tool tests (`tests/run_all.sh`) |
 | `fingerprints/` | WA104 fingerprint **template** (all unknown) + JSON schema |
 | `release/` | Merged flash images (generated by `tools/build.sh`) |

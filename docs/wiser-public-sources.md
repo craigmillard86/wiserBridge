@@ -263,3 +263,37 @@ it had run for over 24 h** with the C6 and all TRVs online in the Wiser app, and
 afternoon's route-request storm. This is owner-reported; no HEALTH log covers the period. Opening the
 USB-JTAG port would reboot the board, so the next measured check should be a single `health` +
 `multihop` read at the end of a soak, or a passive sniffer capture.
+
+## 2026-11-07 — live capture: two WiserBridge routers on the network
+
+On the evening of 2026-11-06 the board that had been the sniffer was reflashed with the router
+firmware: the SuperMini build (`sdkconfig.supermini`, no RF switch, LED on GPIO15) with the Heiman
+plug profile. It joined as a second router. An ESP32-C6-Zero became the new sniffer.
+
+A 10-minute ch-16 capture (8,115 frames, sniffer beside the XIAO) was decoded with
+`tools/sniff_device_summary.py`. Each node was identified from the IEEE source address in its NWK
+frames.
+
+| Short | Device | Role / next hop to hub | Originated | Relayed | MAC retx | Own NWK broadcasts |
+|---|---|---|---|---|---|---|
+| 0x0000 | Wiser hub | coordinator | 637* | — | 1 % | 16 link status, 20 MTORR |
+| 0x2c3c | C6 #1, XIAO (IEEE 98:a3:16:ff:fe:bb:7a:38) | router, hub direct 191/191 | 231 | 654 | 3 % | 40 link status, 0 RREQ |
+| 0x578f | C6 #2, ex-sniffer (Espressif OUI 54:32:04) | router, hub direct | 229 | 522 | <1 % | 40 link status, 0 RREQ |
+| 0x7798 | Heiman plug | router, hub direct | 121 | 172 | 0 % | 34 link status, 0 RREQ |
+| 0x917f, 0x38e4, 0x6922, 0x7183 | TRVs | end devices, parent **C6 #1** | 104–114 each | — | 1–5 % | — |
+| 0xe230 | end device | parent C6 #1 (2 frames) | 2 | — | — | — |
+| 0x9e36 | end device | parent plug | 80 | — | 0 % | — |
+| 7 others | end devices | hub direct | 53–110 each | — | 0–4 % | — |
+
+\* The hub was heard at −96 dBm, so its counts are undercounts.
+
+* **C6 #1 is the busiest router** on the network: 654 frames relayed in 10 min. Its uplink goes
+  directly to the hub. The hub's downlink to it, and its source-routed frames to C6 #1's TRVs, arrive
+  via C6 #2: **hub → C6 #2 → C6 #1 → TRV**.
+* **The route-request storm has not recurred.** No router originated a radius > 1 command broadcast.
+  Each sent link status about every 15 s. Compare C6 #1's ~600 RREQs per 20 min on the afternoon of
+  2026-11-06.
+* **C6 #1 has not rejoined since 2026-11-06 ~18:18.** It still has short address 0x2c3c, the address
+  it was given at that join, so this partly verifies the owner-reported 24 h run.
+* The real plug is no longer the uplink for either C6. Both routers link to the hub directly, which
+  fits the owner's report that the route moved from via-plug to direct once that was the better path.
