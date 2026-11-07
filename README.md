@@ -8,11 +8,12 @@ Wiser Heat Hub ──► WA104 repeater ──► ESP32-C6 (this firmware) ─�
    (coordinator / trust centre)        (ordinary Zigbee router)       (sleepy end devices)
 ```
 
-> **Status (2026-11-07): works on a real Wiser network, but NOT yet safe to leave on a live heating
-> system.** On the author's network the C6 joined and stayed joined, relayed hub traffic over two
-> hops (confirmed with a sniffer), and parented real Wiser TRVs. It was later **removed** after a
-> test session in which a branch of the mesh lost its route to the hub (see
-> [Tested evidence](#tested-evidence) below). Use a test network, or watch the system closely.
+> **Status (2026-11-07): working on a real Wiser network.** The C6 joins the Wiser Heat Hub and stays
+> joined. It shows in the Wiser app as a smart plug, relays hub traffic over two hops (confirmed with a
+> sniffer) and parents real Wiser TRVs. Since rejoining on the evening of 2026-11-06 it has run on the
+> live heating network for **over 24 h with all TRVs reporting**. That result is reported by the owner;
+> no serial log covers it. Read the earlier [live-network incident](#tested-evidence) before deploying,
+> and place the C6 with a solid link to its parent router.
 
 This is **not a Drayton product** and does not pretend to be one. It joins your existing network as a
 standard router using standard Zigbee commissioning and security; it never forms its own network and
