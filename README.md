@@ -55,7 +55,7 @@ second C6 running `sniffer/` as a passive capture radio. The full logs are in
 | M1 | Builds and runs | ✅ **Passed** 2026-11-05 | IDF v5.5.6, 0 errors and 0 warnings for both router and sniffer; host tests pass (75/75 C, 11/11 Python); bench checks on a real XIAO ([verification report](docs/verification-report.md)) |
 | M2 | Joins the Wiser hub | ✅ **Passed**, with a recognised identity | A generic router identity was joined and then **removed by the hub after about 10 s** (3 out of 3 attempts). With the Wiser smart plug's standard identity (HEIMAN `SmartPlug-EF-3.0`, mfr 0x120B, device 0x0051) it was **accepted and kept** |
 | M3 | Survives reboots | ✅ **Observed** | `JOINED (restored from NVRAM)` after an app reflash and reboots, with no re-commissioning |
-| M4 | Multi-hop hub ↔ plug ↔ C6 | ✅ **Shown, ⚠️ not stable** | `ping 0x0000` 10/10 via plug; sniffer shows 0 direct frames in either direction (uplink C6→plug→hub, downlink source-routed hub→plug→C6); 25-min soak 17/17 clean on an external U.FL antenna. The route then **decays** (see below) |
+| M4 | Multi-hop hub ↔ plug ↔ C6 | ✅ **Passed** 2026-11-06 | `ping 0x0000` 10/10 via the plug, verdict `JOINED_MULTIHOP_VERIFIED`. The sniffer shows 0 direct frames in either direction (uplink C6→plug→hub, downlink source-routed hub→plug→C6). The C6 stayed routed through the plug for a sustained period (including a clean 25-min ping soak, 17/17) until the stack switched to a direct route to the hub once that became the better path. That switch is normal Zigbee route selection. At the far edge-of-range spot, the direct route it chose was too weak to hold (see below) |
 | M5 | TRVs use the C6 as parent | ✅ **Demonstrated** 2026-11-05 | After a plug power-cycle, 5 sleepy TRVs stayed children of the C6. Traffic went TRV → C6 → plug → hub, with `ping 0x0000` 7/8 at about 50 ms and verdict `JOINED_MULTIHOP_VERIFIED` |
 | M6 | Long-term reliability | ✅ **24 h passed** (owner-reported), 7-day open | Rejoined 2026-11-06 about 18:18 next to the plug, with the hub reachable (`ping 0x0000` 3/3 and 5/5, about 30–45 ms) and 2 sleepy TRVs as children by 18:50. Since then it has run more than 24 h on a phone-charger supply, with the C6 and all TRVs online in the Wiser app. No serial log was attached, because opening USB-JTAG reboots the board |
 | — | Works as a smart plug in the app | ✅ | Wiser app On/Off toggles drive a GPIO, and the hub reads back metering values |
@@ -67,8 +67,8 @@ second C6 running `sniffer/` as a passive capture radio. The full logs are in
   20 and 7. The real plug answers *unsupported* to these and is still kept. A router with an unknown
   identity receives `Mgmt_Leave` about 10 s after joining.
 * **The Wiser hub is a concentrator.** A router can only reach it through a many-to-one route, which is
-  learned from the hub's periodic MTORR broadcasts. The C6's uplink worked after a fresh join and then
-  aged out (`NO_ROUTE_AVAILABLE`, ping 0/N) while the downlink kept working. The external antenna only
+  learned from the hub's periodic MTORR broadcasts. At the far, edge-of-range spot, the uplink worked
+  through the plug and then, once the route moved off the plug, it sometimes aged out (`NO_ROUTE_AVAILABLE`, ping 0/N) while the downlink kept working. The external antenna only
   helped for a while. esp-zigbee has **no API to install a static route**, so the firmware cannot pin
   `hub via plug`.
 * **A routing loop formed between the plug and the C6.** Decrypted captures show the C6 correctly
