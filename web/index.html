@@ -61,9 +61,18 @@
   <p class="muted">If the port doesn't connect, close any other program using it (serial
     monitor, esptool, the console tab), or hold BOOT while plugging the board in.</p>
 
-  <h2>3. Set up and join</h2>
-  <p>Open the <a href="console.html">console</a> and follow the steps there: check the identity,
-    find your Wiser network, then join.</p>
+  <h2>3. Join your Wiser network</h2>
+  <p>No computer needed for this part.</p>
+  <ol>
+    <li>Unplug the board and power it from a USB charger where it will live.</li>
+    <li>In the Wiser app, start adding a device so the hub opens pairing.</li>
+    <li><strong>Press the BOOT button once</strong> (a short press). On a XIAO the LED blinks fast
+      while joining and stays on when joined.</li>
+    <li>After a minute a new smart plug appears in the Wiser app. That's it.</li>
+  </ol>
+  <p class="muted">Prefer to watch it happen, or something went wrong? The
+    <a href="console.html">console</a> has a Join button, status and troubleshooting.
+    Don't hold BOOT for 10 s: that leaves the network.</p>
 </main>
 <script>
   if (!("serial" in navigator)) document.getElementById("unsupported").classList.remove("hidden");

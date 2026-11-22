@@ -25,10 +25,13 @@ desktop computer.
 
 1. Pick your board (XIAO or another ESP32-C6) and click Install. Choose the board's
    port from the list the browser shows. Erase when asked on a new board.
-2. Start adding a device in the Wiser app so the hub opens pairing.
-3. Open the Console page, click Connect, then Join. After a minute click Status.
+2. Power the board from a USB charger where it will live (see step 5).
+3. Start adding a device in the Wiser app so the hub opens pairing.
+4. **Press the BOOT button on the board once.** After a minute a new smart plug appears in the app.
 
-Then place it (step 5). Nothing to install on your computer. The rest of this page is for building
+No computer needed after flashing. The Console page has a Join button, status and
+troubleshooting if you want to watch it or something goes wrong. Nothing to install on your
+computer. The rest of this page is for building
 it yourself.
 
 ## What you need
@@ -72,13 +75,11 @@ Type `help` for the command list. Opening the port restarts the board; that's ex
 
 ## 4. Join
 
-Start adding a device in the Wiser app so the hub opens pairing. Then, on the console:
+Start adding a device in the Wiser app so the hub opens pairing. Then **press the BOOT button on the
+board once** (a short press), or type `join` on the console. The board doesn't need to be connected
+to a computer for the button. The LED blinks fast while joining and stays on when joined (XIAO).
 
-```
-join
-```
-
-You can short-press the BOOT button instead. After a minute, run `status`. `JOINED_LINKS_PRESENT`,
+After a minute a new smart plug appears in the app. On the console, run `status`. `JOINED_LINKS_PRESENT`,
 `JOINED_COORDINATOR_REACHABLE` or `JOINED_MULTIHOP_VERIFIED` means it worked, and a new smart plug
 appears in the app.
 
