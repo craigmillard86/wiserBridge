@@ -23,7 +23,7 @@ through one of them. See [docs/test-results.md](docs/test-results.md).
 The quickest way: open **https://craigmillard86.github.io/wiserBridge/** in Chrome or Edge on a
 desktop computer.
 
-1. Pick your board (XIAO, another ESP32-C6, or the sniffer) and click Install. Choose the board's
+1. Pick your board (XIAO or another ESP32-C6) and click Install. Choose the board's
    port from the list the browser shows. Erase when asked on a new board.
 2. Open the Console page. Its buttons walk you through steps 4 to 6 below: check the identity,
    scan for your network, set the EPID, join.

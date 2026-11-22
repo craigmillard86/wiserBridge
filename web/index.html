@@ -25,22 +25,24 @@
   <h2>1. Pick your board</h2>
   <div class="panel" id="boards">
     <label class="choice">
-      <input type="radio" name="fw" value="firmware/router-xiao/manifest.json" checked>
-      <span>Router, Seeed XIAO ESP32-C6
-        <small>Uses the XIAO's antenna switch (GPIO3 and GPIO14).</small></span>
+      <input type="radio" name="board" value="xiao" checked>
+      <span>Seeed XIAO ESP32-C6</span>
     </label>
     <label class="choice">
-      <input type="radio" name="fw" value="firmware/router-generic/manifest.json">
-      <span>Router, other ESP32-C6 boards
-        <small>SuperMini, C6-Zero, DevKitC and similar. Antenna switch pins are left alone.</small></span>
-    </label>
-    <label class="choice">
-      <input type="radio" name="fw" value="firmware/sniffer/manifest.json">
-      <span>Sniffer
-        <small>Passive packet capture for troubleshooting. Not a router. Use it with
-          <code>tools/sniff_to_pcap.py</code>.</small></span>
+      <input type="radio" name="board" value="generic">
+      <span>Other ESP32-C6 board
+        <small>SuperMini, C6-Zero, DevKitC and similar.</small></span>
     </label>
   </div>
+  <details>
+    <summary class="muted">Advanced</summary>
+    <label class="choice">
+      <input type="checkbox" id="sniffer">
+      <span>Install the packet sniffer instead
+        <small>For troubleshooting only. The board captures Zigbee traffic for
+          <code>tools/sniff_to_pcap.py</code> and does not act as a router. Works on any ESP32-C6.</small></span>
+    </label>
+  </details>
 
   <h2>2. Install</h2>
   <p>Plug the board in with a USB data cable, then click Install and pick its port from the list.
@@ -66,9 +68,15 @@
 <script>
   if (!("serial" in navigator)) document.getElementById("unsupported").classList.remove("hidden");
   const btn = document.getElementById("install");
-  for (const r of document.querySelectorAll('input[name="fw"]')) {
-    r.addEventListener("change", () => btn.setAttribute("manifest", r.value));
+  const sniffer = document.getElementById("sniffer");
+  function pick() {
+    const board = document.querySelector('input[name="board"]:checked').value;
+    const fw = sniffer.checked ? "sniffer" : "router-" + board;
+    btn.setAttribute("manifest", `firmware/${fw}/manifest.json`);
   }
+  for (const r of document.querySelectorAll('input[name="board"]')) r.addEventListener("change", pick);
+  sniffer.addEventListener("change", pick);
+  pick();
   fetch("firmware/version.txt").then(r => r.ok ? r.text() : "unknown")
     .then(t => document.getElementById("ver").textContent = t.trim())
     .catch(() => document.getElementById("ver").textContent = "unknown");

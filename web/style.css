@@ -106,3 +106,6 @@ input[type="text"] {
 #cmd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
 ol { padding-left: 22px; }
 li { margin: 4px 0; }
+details { margin: 4px 0 12px; }
+details summary { cursor: pointer; padding: 4px 0; }
+details .choice { border-bottom: 0; }
