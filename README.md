@@ -18,12 +18,25 @@ change that.
 Status: two boards have been running on a real Wiser network since 2026-11-06, with four TRVs routed
 through one of them. See [docs/test-results.md](docs/test-results.md).
 
+## Install from your browser
+
+The quickest way: open **https://craigmillard86.github.io/wiserBridge/** in Chrome or Edge on a
+desktop computer.
+
+1. Pick your board (XIAO, another ESP32-C6, or the sniffer) and click Install. Choose the board's
+   port from the list the browser shows. Erase when asked on a new board.
+2. Open the Console page. Its buttons walk you through steps 4 to 6 below: check the identity,
+   scan for your network, set the EPID, join.
+
+Then place it (step 7). Nothing to install on your computer. The rest of this page is for building
+it yourself.
+
 ## What you need
 
 - A Seeed Studio XIAO ESP32-C6 (tested). Other ESP32-C6 boards work, such as the SuperMini (also
   tested); see [Other boards](#other-boards).
 - A USB-C data cable and a USB power supply for where the board will live.
-- A Windows PC with Python 3 and Docker Desktop (for building). Linux and macOS work too.
+- To build yourself: a PC with Python 3 and Docker Desktop. Not needed for the browser install.
 - The Wiser app, to open pairing on the hub.
 
 ## 1. Build

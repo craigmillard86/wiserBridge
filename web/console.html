@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WiserBridge console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>WiserBridge console</h1>
+  <nav>
+    <a href="index.html">Install</a>
+    <a href="console.html">Console</a>
+    <a href="https://github.com/craigmillard86/wiserBridge">Source and docs</a>
+  </nav>
+
+  <div id="unsupported" class="warn hidden">
+    This browser can't talk to USB serial ports. Use Chrome or Edge on a desktop computer.
+  </div>
+
+  <div class="row">
+    <button id="connect" class="primary">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <button id="restart" disabled title="Hardware reset over USB">Restart board</button>
+    <label><input type="checkbox" id="allports"> Show all ports</label>
+  </div>
+  <p class="muted" id="state">Not connected. Connect opens the browser's port list; pick the board
+    (usually "USB JTAG/serial debug unit"). Connecting restarts the board once. It stays joined.</p>
+
+  <div id="term" aria-live="polite"></div>
+
+  <div class="row">
+    <input type="text" id="cmd" placeholder="Type a command, e.g. help" autocomplete="off" disabled>
+    <button id="send" disabled>Send</button>
+  </div>
+
+  <h2>Setup steps</h2>
+  <ol>
+    <li>Check the identity. It should say HEIMAN and SmartPlug-EF-3.0.
+      <div class="row">
+        <button data-cmd="profile show" disabled>profile show</button>
+        <button data-cmds="profile defaults|profile save|reboot" disabled>Reset identity to defaults</button>
+      </div>
+    </li>
+    <li>Click Scan. Then start adding a device in the Wiser app and click Scan again. The network
+      that changed to OPEN is yours. Copy its EPID here:
+      <div class="row">
+        <button data-cmd="scan" disabled>scan</button>
+        <input type="text" id="epid" placeholder="EPID, e.g. 8c:d7:02:ab:04:01:5e:10" disabled>
+        <button id="setepid" disabled>Set EPID</button>
+      </div>
+    </li>
+    <li>With pairing still open in the app, join. After a minute check the status. A verdict
+      starting with JOINED_ means it worked.
+      <div class="row">
+        <button data-cmd="join" disabled>join</button>
+        <button data-cmd="status" disabled>status</button>
+      </div>
+    </li>
+    <li>Later, check what it's doing:
+      <div class="row">
+        <button data-cmd="children" disabled>children</button>
+        <button data-cmd="neighbors" disabled>neighbors</button>
+        <button data-cmd="ping 0x0000 5" disabled>ping hub</button>
+        <button data-cmd="multihop" disabled>multihop</button>
+        <button data-cmd="health" disabled>health</button>
+      </div>
+    </li>
+  </ol>
+
+  <div class="row">
+    <button id="savelog">Save log</button>
+    <button id="clear">Clear</button>
+  </div>
+  <p class="muted">Everything stays in your browser. To report a problem, save the log and attach
+    it to a GitHub issue.</p>
+</main>
+<script src="console.js"></script>
+</body>
+</html>
