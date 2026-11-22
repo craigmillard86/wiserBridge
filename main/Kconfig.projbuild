@@ -1,15 +1,20 @@
 menu "WiserBridge Router"
 
     menu "Device identity (compatibility profile defaults)"
-        comment "Defaults are deliberately generic. Do NOT enter Drayton/Wiser values unless captured from real evidence (see fingerprints/)."
+        comment "Defaults = the Wiser smart plug (Heiman SmartPlug-EF-3.0), the identity the Wiser hub keeps."
+        comment "A generic identity (e.g. DIY-ESP32C6) is removed by the hub ~10 s after joining."
 
         config WB_MANUFACTURER_NAME
             string "Basic cluster ManufacturerName (max 32 chars)"
-            default "DIY-ESP32C6"
+            default "HEIMAN"
 
         config WB_MODEL_IDENTIFIER
             string "Basic cluster ModelIdentifier (max 32 chars)"
-            default "ZB-ROUTER-C6"
+            default "SmartPlug-EF-3.0"
+
+        config WB_DATE_CODE
+            string "Basic cluster DateCode (max 16 chars, may be empty)"
+            default "20231122"
 
         config WB_ENDPOINT
             int "Application endpoint number"
@@ -24,23 +29,37 @@ menu "WiserBridge Router"
 
         config WB_DEVICE_ID
             hex "Application device ID"
-            default 0x0008
+            default 0x0051
             help
-                0x0008 = HA Range Extender.
+                0x0051 = Smart Plug (what the Wiser hub accepts).
+                0x0008 = HA Range Extender (generic; the Wiser hub removes it).
 
         config WB_DEVICE_VERSION
             int "Application device version"
             range 0 15
-            default 0
+            default 1
 
         config WB_NODE_MANUFACTURER_CODE
             hex "Node descriptor manufacturer code (0 = keep SDK default)"
-            default 0x0000
+            default 0x120B
+            help
+                0x120B = HEIMAN.
             range 0x0000 0xFFFF
 
         config WB_ENABLE_IDENTIFY
             bool "Expose Identify server cluster"
             default y
+
+        config WB_IN_CLUSTERS
+            string "Extra server clusters, comma-separated hex (Basic/Identify are always added)"
+            default "0x0004,0x0005,0x0006,0x0009,0x0702,0x0b04,0x0b05"
+            help
+                Smart-plug set: Groups, Scenes, On/Off, Alarms, Metering,
+                Electrical Measurement, Diagnostics. Empty = none.
+
+        config WB_OUT_CLUSTERS
+            string "Client clusters, comma-separated hex"
+            default "0x0003,0x0019"
     endmenu
 
     menu "Zigbee network"

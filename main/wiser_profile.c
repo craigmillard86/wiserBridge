@@ -32,12 +32,14 @@ typedef struct {
 static wb_profile_t s_active;
 static wb_profile_t s_pending;
 
+static bool parse_cluster_list(const char *v, uint16_t *list, uint8_t *count);
+
 static void profile_defaults(wb_profile_t *p)
 {
     memset(p, 0, sizeof(*p));
     strlcpy(p->manufacturer, CONFIG_WB_MANUFACTURER_NAME, sizeof(p->manufacturer));
     strlcpy(p->model, CONFIG_WB_MODEL_IDENTIFIER, sizeof(p->model));
-    strlcpy(p->date_code, "", sizeof(p->date_code));
+    strlcpy(p->date_code, CONFIG_WB_DATE_CODE, sizeof(p->date_code));
     p->endpoint = CONFIG_WB_ENDPOINT;
     p->profile_id = CONFIG_WB_PROFILE_ID;
     p->device_id = CONFIG_WB_DEVICE_ID;
@@ -48,6 +50,8 @@ static void profile_defaults(wb_profile_t *p)
 #endif
     p->max_children = CONFIG_WB_MAX_CHILDREN;
     p->power_source = 0x01;
+    if (!parse_cluster_list(CONFIG_WB_IN_CLUSTERS, p->extra_in, &p->extra_in_count)) p->extra_in_count = 0;
+    if (!parse_cluster_list(CONFIG_WB_OUT_CLUSTERS, p->extra_out, &p->extra_out_count)) p->extra_out_count = 0;
     strlcpy(p->source, "kconfig-default", sizeof(p->source));
 }
 
