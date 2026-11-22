@@ -7,6 +7,7 @@ const ESPRESSIF_VID = 0x303a;
 const MAX_CHARS = 400000;
 
 let port = null;
+let connecting = false;
 let reader = null;
 let writer = null;
 let log = "";
@@ -74,20 +75,30 @@ async function readLoop() {
 }
 
 async function connect() {
+  if (connecting || port) return;
+  connecting = true;
+  $("connect").disabled = true;
+  let p = null;
   try {
     const filters = $("allports").checked ? [] : [{ usbVendorId: ESPRESSIF_VID }];
-    port = await navigator.serial.requestPort({ filters });
-    await port.open({ baudRate: 115200 });
+    p = await navigator.serial.requestPort({ filters });
+    await p.open({ baudRate: 115200 });
     // Keep EN and BOOT released (same as tools/wb_monitor.py), so the board runs normally.
-    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
-    writer = port.writable.getWriter();
+    await p.setSignals({ dataTerminalReady: false, requestToSend: false });
+    writer = p.writable.getWriter();
+    port = p;
     setConnected(true);
     note("connected");
     readLoop().then(() => { if (port) disconnect(); });
     setTimeout(() => send(""), 1500);
   } catch (e) {
     if (e.name !== "NotFoundError") note(`could not connect: ${e.message}`);
+    try { if (writer) { writer.releaseLock(); writer = null; } } catch (_) {}
+    try { if (p) await p.close(); } catch (_) {}
     port = null;
+    setConnected(false);
+  } finally {
+    connecting = false;
   }
 }
 

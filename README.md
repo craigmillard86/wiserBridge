@@ -104,8 +104,8 @@ With pairing still open in the app:
 join
 ```
 
-After a minute, run `status`. A verdict starting with `JOINED_` means it worked, and a new smart plug
-appears in the app. You can also short-press the BOOT button instead of typing `join`.
+After a minute, run `status`. `JOINED_LINKS_PRESENT`, `JOINED_COORDINATOR_REACHABLE` or
+`JOINED_MULTIHOP_VERIFIED` means it worked, and a new smart plug appears in the app. You can also short-press the BOOT button instead of typing `join`.
 
 If you see `JOINED_THEN_REMOVED`, the hub rejected the identity: go back to step 4. Other verdicts
 are explained in [docs/troubleshooting.md](docs/troubleshooting.md).

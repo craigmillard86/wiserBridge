@@ -51,8 +51,10 @@
         <button id="setepid" disabled>Set EPID</button>
       </div>
     </li>
-    <li>With pairing still open in the app, join. After a minute check the status. A verdict
-      starting with JOINED_ means it worked.
+    <li>With pairing still open in the app, join. After a minute check the status.
+      JOINED_LINKS_PRESENT, JOINED_COORDINATOR_REACHABLE or JOINED_MULTIHOP_VERIFIED means it
+      worked. JOINED_THEN_REMOVED means the hub removed it: go back to step 1, reset the identity,
+      and join again.
       <div class="row">
         <button data-cmd="join" disabled>join</button>
         <button data-cmd="status" disabled>status</button>

@@ -18,17 +18,23 @@ on:
     paths:
       - "main/**"
       - "sniffer/**"
-      - "sdkconfig.*"
+      - "sdkconfig.defaults"
+      - "sdkconfig.generic"
+      - "partitions.csv"
+      - "CMakeLists.txt"
       - "web/**"
+      - "tools/make_web_manifest.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# PR builds get their own group per branch (newer pushes cancel older ones). Deploys from master
+# share one group and are never cancelled, so a PR run can't displace a queued deployment.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.ref) || 'pages-deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
