@@ -19,7 +19,11 @@ uses that identity by default.
 3. Place the C6 near the hub or the WA104 for the first join. Joining through the WA104 works,
    because routers re-broadcast the hub's permit-join.
 
-## Step 1: check the identity
+The short version: open pairing in the Wiser app, run `join`, then `status`. That is all a fresh
+board needs. Steps 1 and 2 below are checks and an optional safety lock, for when a join fails or a
+neighbour might be pairing Zigbee devices at the same time.
+
+## Step 1: check the identity (optional on a fresh install)
 
 ```
 wb> profile show
@@ -46,7 +50,7 @@ wb> reboot
 Run `profile show` again to confirm. If the board had already joined with the old identity, reset it
 first (see [Starting over](#starting-over)), then join again.
 
-## Step 2: find the Wiser network
+## Step 2: find the Wiser network (optional)
 
 With the hub not in pairing mode, scan:
 
@@ -66,8 +70,8 @@ network. If a neighbour could be pairing at the same time, repeat the check.
 
 ## Step 3: select the network and join
 
-Set the EPID filter to the Wiser network's extended PAN ID. It is saved in NVS, so `join` only
-targets that network.
+If you did step 2, set the EPID filter to the Wiser network's extended PAN ID. It is saved in NVS,
+so `join` only targets that network. Without it, `join` joins whichever network has pairing open.
 
 ```
 wb> epid c5:a9:1c:6a:12:08:eb:2b        <- use your network's EPID

@@ -25,10 +25,10 @@ desktop computer.
 
 1. Pick your board (XIAO or another ESP32-C6) and click Install. Choose the board's
    port from the list the browser shows. Erase when asked on a new board.
-2. Open the Console page. Its buttons walk you through steps 4 to 6 below: check the identity,
-   scan for your network, set the EPID, join.
+2. Start adding a device in the Wiser app so the hub opens pairing.
+3. Open the Console page, click Connect, then Join. After a minute click Status.
 
-Then place it (step 7). Nothing to install on your computer. The rest of this page is for building
+Then place it (step 5). Nothing to install on your computer. The rest of this page is for building
 it yourself.
 
 ## What you need
@@ -70,47 +70,29 @@ py tools\wb_monitor.py --port COM8 --duration 0
 
 Type `help` for the command list. Opening the port restarts the board; that's expected.
 
-## 4. Check the identity
+## 4. Join
 
-```
-profile show
-```
-
-It should show `HEIMAN` and `SmartPlug-EF-3.0`. If it shows `DIY-ESP32C6` / `ZB-ROUTER-C6`, the board
-has an old saved profile and the hub will remove it after joining. Reset it:
-
-```
-profile defaults
-profile save
-reboot
-```
-
-## 5. Find your Wiser network
-
-Run `scan`. Then start adding a device in the Wiser app so the hub opens pairing, and run `scan`
-again. The network that changed to `OPEN` is yours. Lock the board to it:
-
-```
-epid <EPID of that network>
-```
-
-This stops the board from joining a neighbour's network.
-
-## 6. Join
-
-With pairing still open in the app:
+Start adding a device in the Wiser app so the hub opens pairing. Then, on the console:
 
 ```
 join
 ```
 
-After a minute, run `status`. `JOINED_LINKS_PRESENT`, `JOINED_COORDINATOR_REACHABLE` or
-`JOINED_MULTIHOP_VERIFIED` means it worked, and a new smart plug appears in the app. You can also short-press the BOOT button instead of typing `join`.
+You can short-press the BOOT button instead. After a minute, run `status`. `JOINED_LINKS_PRESENT`,
+`JOINED_COORDINATOR_REACHABLE` or `JOINED_MULTIHOP_VERIFIED` means it worked, and a new smart plug
+appears in the app.
 
-If you see `JOINED_THEN_REMOVED`, the hub rejected the identity: go back to step 4. Other verdicts
-are explained in [docs/troubleshooting.md](docs/troubleshooting.md).
+If you see `JOINED_THEN_REMOVED`, the hub removed it. Run `profile show`: it should say `HEIMAN` /
+`SmartPlug-EF-3.0`. If it says `DIY-ESP32C6` / `ZB-ROUTER-C6`, the board has an old saved profile.
+Run `profile defaults`, `profile save`, `reboot`, then join again. Other verdicts are explained in
+[docs/troubleshooting.md](docs/troubleshooting.md).
 
-## 7. Place it
+**Optional: lock it to your network.** The board joins whichever Zigbee network has pairing open.
+If a neighbour might be pairing a Zigbee device at the same time, lock it to yours first: run
+`scan`, open pairing in the Wiser app, run `scan` again, and run `epid <EPID>` with the EPID of the
+network that changed to `OPEN`.
+
+## 5. Place it
 
 Unplug the board and power it from a USB charger somewhere between the hub and the far TRVs. It keeps
 its network membership across power cuts.
