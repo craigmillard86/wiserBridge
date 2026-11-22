@@ -1,0 +1,5 @@
+# Overlay for ESP32-C6 boards other than the Seeed XIAO (SuperMini, C6-Zero, DevKitC, ...).
+# The XIAO has an RF switch on GPIO3/GPIO14; other boards don't, so leave those pins alone.
+# Build: idf.py -D SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.generic" build
+CONFIG_WB_RF_SWITCH_EN_GPIO=-1
+CONFIG_WB_ANT_SELECT_GPIO=-1

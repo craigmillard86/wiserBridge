@@ -1,5 +1,18 @@
 # Flashing on Windows
 
+## From the browser
+
+Open https://craigmillard86.github.io/wiserBridge/ in Chrome or Edge. Pick the board, click
+Install and choose its port. Erase on a new board or when switching firmware. Don't erase when
+updating a joined router: it keeps its network membership and settings. The Console page on the
+same site replaces `wb_monitor.py`.
+
+The site is built by `.github/workflows/pages.yml` on every push to `master`. It flashes the
+bootloader, partition table and app as separate parts at 0x0, 0x8000 and 0x10000, so NVS is not
+overwritten.
+
+The rest of this page covers flashing with esptool.
+
 ## 1. Find the COM port
 
 Connect the XIAO ESP32-C6 with a USB-C data cable. It appears as "USB Serial Device (COMx)", VID

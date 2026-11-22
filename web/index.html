@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WiserBridge installer</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+</head>
+<body>
+<main>
+  <h1>WiserBridge installer</h1>
+  <p class="muted">Zigbee router firmware for extending a Drayton Wiser heating network.
+    Version <span id="ver">…</span>.</p>
+  <nav>
+    <a href="index.html">Install</a>
+    <a href="console.html">Console</a>
+    <a href="https://github.com/craigmillard86/wiserBridge">Source and docs</a>
+  </nav>
+
+  <div id="unsupported" class="warn hidden">
+    This browser can't talk to USB serial ports. Use Chrome or Edge on a desktop computer.
+  </div>
+
+  <h2>1. Pick your board</h2>
+  <div class="panel" id="boards">
+    <label class="choice">
+      <input type="radio" name="fw" value="firmware/router-xiao/manifest.json" checked>
+      <span>Router, Seeed XIAO ESP32-C6
+        <small>Uses the XIAO's antenna switch (GPIO3 and GPIO14).</small></span>
+    </label>
+    <label class="choice">
+      <input type="radio" name="fw" value="firmware/router-generic/manifest.json">
+      <span>Router, other ESP32-C6 boards
+        <small>SuperMini, C6-Zero, DevKitC and similar. Antenna switch pins are left alone.</small></span>
+    </label>
+    <label class="choice">
+      <input type="radio" name="fw" value="firmware/sniffer/manifest.json">
+      <span>Sniffer
+        <small>Passive packet capture for troubleshooting. Not a router. Use it with
+          <code>tools/sniff_to_pcap.py</code>.</small></span>
+    </label>
+  </div>
+
+  <h2>2. Install</h2>
+  <p>Plug the board in with a USB data cable, then click Install and pick its port from the list.
+    It usually shows as "USB JTAG/serial debug unit".</p>
+  <esp-web-install-button id="install" manifest="firmware/router-xiao/manifest.json">
+    <button slot="activate" class="primary">Install</button>
+    <span slot="unsupported">Use Chrome or Edge on a desktop computer.</span>
+    <span slot="not-allowed">This page must be opened over https.</span>
+  </esp-web-install-button>
+  <p>When it asks about erasing:</p>
+  <ul>
+    <li><strong>New board, or switching firmware:</strong> erase.</li>
+    <li><strong>Updating a router that is already joined:</strong> don't erase. It keeps its
+      network membership and saved settings.</li>
+  </ul>
+  <p class="muted">If the port doesn't connect, close any other program using it (serial
+    monitor, esptool, the console tab), or hold BOOT while plugging the board in.</p>
+
+  <h2>3. Set up and join</h2>
+  <p>Open the <a href="console.html">console</a> and follow the steps there: check the identity,
+    find your Wiser network, then join.</p>
+</main>
+<script>
+  if (!("serial" in navigator)) document.getElementById("unsupported").classList.remove("hidden");
+  const btn = document.getElementById("install");
+  for (const r of document.querySelectorAll('input[name="fw"]')) {
+    r.addEventListener("change", () => btn.setAttribute("manifest", r.value));
+  }
+  fetch("firmware/version.txt").then(r => r.ok ? r.text() : "unknown")
+    .then(t => document.getElementById("ver").textContent = t.trim())
+    .catch(() => document.getElementById("ver").textContent = "unknown");
+</script>
+</body>
+</html>
