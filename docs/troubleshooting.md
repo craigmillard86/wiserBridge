@@ -1,55 +1,69 @@
 # Troubleshooting
 
-Start with `status`, `diagnostics` and `events` — the verdict and advice usually point at the cause.
+Run `status`, `diagnostics` and `events` first. The verdict in `status` usually names the cause.
 
-## Serial / flashing
+## Removed about 10 s after joining (`JOINED_THEN_REMOVED`)
+
+The hub removes devices with a generic identity, such as the old default `DIY-ESP32C6` /
+`ZB-ROUTER-C6` (device 0x0008). Current builds use the Wiser smart plug identity (`HEIMAN` /
+`SmartPlug-EF-3.0`, device 0x0051).
+
+1. Run `profile show`. If it shows `DIY-ESP32C6` / `ZB-ROUTER-C6`, run `profile defaults`,
+   `profile save`, `reboot`. On an older build without the plug defaults, set the fields one by one
+   (see [README.md](../README.md)). If you build from source, check `sdkconfig` has the new defaults
+   (see [building.md](building.md)).
+2. Open pairing in the Wiser app and run `join`.
+3. If it is still removed, run `events` and note the seconds between join and Leave. Open an issue
+   with the output of `profile show` and `events`.
+
+## Serial and flashing
 
 | Symptom | Fix |
 |---|---|
-| No COM port | Use a data cable; check Device Manager for VID_303A/PID_1001 |
-| esptool cannot connect | Hold BOOT, tap RESET/re-plug, release BOOT, retry |
-| No prompt after opening the port | Press Enter; the REPL prints `wb>` after each command. Use `--reset` to see the boot banner |
-| "Your terminal application does not support escape sequences" | Harmless (no line editing in that terminal) |
-| Board reboots when a serial tool connects | That tool toggles DTR/RTS. `tools/wb_monitor.py` does not |
+| No COM port | Use a data cable. Look for VID_303A/PID_1001 in Device Manager |
+| esptool cannot connect | Hold BOOT, press RESET or replug, release BOOT, retry |
+| No prompt | Press Enter. Use `wb_monitor.py --reset` to see the boot banner |
+| "Your terminal application does not support escape sequences" | Harmless |
+| Board reboots when the port opens | Expected on USB-Serial/JTAG. Network membership is kept |
 
-## Boot / stack
+## Boot and stack
 
-| Log / verdict | Meaning | Action |
-|---|---|---|
-| `No production config in zb_fct` | Normal | none |
-| `STACK_ERROR`, `START FAILED … retrying` | Stack could not initialise | Check the boot log just before it; if `zb_storage` is suspected corrupt: `erase-flash` and reflash (loses membership) |
-| `Endpoint registration failed` | Invalid profile | `profile show`; `profile defaults`; `reboot` |
-| Reset reason `BROWNOUT` | Supply dipped | Better USB PSU/cable |
-| Reset reason `PANIC`/`WATCHDOG` | Firmware fault | Keep the log (the panic backtrace prints before reboot) and report it |
+| Log | Action |
+|---|---|
+| `No production config in zb_fct` | Normal. Ignore |
+| `STACK_ERROR`, `START FAILED ... retrying` | Check the log just before it. If `zb_storage` is corrupt, `erase-flash` and reflash (loses membership) |
+| `Endpoint registration failed` | Invalid profile. Run `profile show`, then `profile defaults`, `profile save`, `reboot` |
+| Reset reason `BROWNOUT` | Use a better USB supply or cable |
+| Reset reason `PANIC` or `WATCHDOG` | Firmware fault. Keep the log (it includes the backtrace) and report it |
 
 ## Joining
 
-| Verdict | Likely cause | Action |
+| Verdict | Cause | Action |
 |---|---|---|
-| `PERMIT_JOIN_CLOSED` | Hub not in pairing mode (or it timed out) | Re-open pairing in the app, `scan` to confirm OPEN, `join` |
-| `NO_NETWORK_VISIBLE` | Out of range / wrong channel mask / antenna | Move closer; `channels default`; check `CONFIG_WB_ANTENNA_EXTERNAL` matches the hardware |
-| `NO_ROUTER_CAPACITY` | Beaconing devices refuse routers | Try a spot near a different router or the hub |
-| `SECURITY_TCLK_FAILURE` | Trust Center link-key update failed | `tclk off`, `reboot`, `join`. Record it — this indicates a legacy (pre-R21) trust centre |
-| `JOIN_REFUSED_OR_AUTH_FAILED` | Association refused, or the trust centre did not send/accept the key (allow-list, install-code-only policy) | Needs a sniffer capture of the attempt (association response status; presence of Transport-Key) |
-| `JOINED_THEN_REMOVED` | Hub admitted then sent Leave | App-level rejection. See protocol-investigation.md for the identity investigation |
-| Joined the **wrong** network | No EPID filter and another network was open | `reset` → `reset confirm`, then `epid <Wiser EPID>`, retry |
-| `join` → `REFUSED: already joined` | Intended: steering on a joined router opens the network | `reset` first if you really want to re-commission |
+| `PERMIT_JOIN_CLOSED` | Hub not in pairing mode, or pairing timed out | Open pairing in the app, `scan` to confirm OPEN, `join` |
+| `NO_NETWORK_VISIBLE` | Range, channel mask or antenna | Move closer. `channels default`. Check `CONFIG_WB_ANTENNA_EXTERNAL` matches the antenna |
+| `NO_ROUTER_CAPACITY` | Nearby devices refuse routers | Try near a different router or the hub |
+| `SECURITY_TCLK_FAILURE` | Link-key update failed | `tclk off`, `reboot`, `join`. Note it: this means a legacy (pre-R21) trust centre |
+| `JOIN_REFUSED_OR_AUTH_FAILED` | Association refused, or key not sent or accepted (allow-list, install-code-only policy) | Sniff the attempt: check the association response status and whether a Transport-Key was sent |
+| `JOINED_THEN_REMOVED` | Hub rejected the identity | See the first section |
+| Joined the wrong network | No EPID filter, and another network was open | `reset`, `reset confirm <code>`, `epid <Wiser EPID>`, then join again |
+| `REFUSED: already joined` | Intended: `join` on a joined router would open the network | `reset` first if you want to re-commission |
 
 ## Running
 
-| Symptom | Meaning | Action |
+| Symptom | Cause | Action |
 |---|---|---|
-| LED double-blink / `ISOLATED for …` | Joined but no router/hub neighbour | Hub/WA104 down or C6 out of range; move it or check power. The stack keeps its state and recovers when links return |
-| `NO ACTIVE LINKS LEFT` | All router links aged out | Same as above |
-| `NWK-STATUS NO_ROUTE_AVAILABLE` / `…LINK_FAILURE` | Route errors reported by the stack | Occasional ones are normal (devices restarting). Persistent ones → poor placement |
-| `NWK-STATUS BAD_FRAME_COUNTER` | Frame counter rejected | Often after a full erase + rejoin while neighbours still hold the old counter; usually clears as entries age. Use `reset` (local reset keeps the counter) instead of `erase-flash` when re-commissioning |
-| `NWK-STATUS NO_INDIRECT_CAPACITY` / `INDIRECT_TRANSACTION_EXPIRY` | Buffered frames for sleepy children overflowed/expired | Too many children or a child that stopped polling; check `children` |
-| Children = 0 for days | TRVs did not choose the C6 | Normal unless a TRV rejoins; see multihop-testing.md Test 5 |
-| `scan` refused | Joined | Intended (scan leaves the channel). Use `scan force` only on a bench network |
-| `lqi` returns `NOT_SUPPORTED` | Remote device does not implement Mgmt_Lqi | Valid answer, not an error in this firmware |
-| `ping` to a TRV times out | Sleepy device answers only after its next poll | Expected; ping routers/hub instead |
+| LED double blink, `ISOLATED for ...` | No router or hub neighbour | Hub or WA104 down, or out of range. Move the C6 or check power. It recovers when links return |
+| `NO ACTIVE LINKS LEFT` | All router links aged out | As above |
+| `NWK-STATUS NO_ROUTE_AVAILABLE` / `...LINK_FAILURE` | Route errors | Occasional ones are normal. Persistent ones mean poor placement |
+| `NWK-STATUS BAD_FRAME_COUNTER` | Frame counter rejected | Often after `erase-flash` and rejoin while neighbours hold the old counter; clears as entries age. Re-commission with `reset` (keeps the counter), not `erase-flash` |
+| `NWK-STATUS NO_INDIRECT_CAPACITY` / `INDIRECT_TRANSACTION_EXPIRY` | Buffered frames for sleepy children overflowed or expired | Too many children, or one stopped polling. Check `children` |
+| Children = 0 for days | No TRV chose the C6 | Normal until a TRV rejoins. See Test 5 in [multihop-testing.md](multihop-testing.md) |
+| `scan` refused | Device is joined | Intended. `scan force` on a bench network only |
+| `lqi` returns `NOT_SUPPORTED` | Remote device lacks Mgmt_Lqi | Valid answer |
+| `ping` to a TRV times out | Sleepy devices answer after their next poll | Ping routers or the hub instead |
 
-## Network key rotation
+## Network key changed while the C6 was off
 
-If the hub changed the network key while the C6 was off, the C6 cannot decrypt traffic after power-up
-(routes fail, isolation warnings). Recovery: `reset` → `reset confirm`, then commission again.
+The C6 cannot decrypt traffic (route failures, isolation warnings). Run `reset`, `reset confirm
+<code>`, then commission it again.

@@ -1,11 +1,14 @@
-# Wiser Zigbee topology card for Home Assistant
+# Wiser topology card for Home Assistant
 
-Home Assistant cannot auto-draw this network because the Drayton Wiser hub is its own closed Zigbee
-coordinator (not ZHA/Zigbee2MQTT). This card renders the topology **observed by the WiserBridge C6**
-(`neighbors`, `children`, and the plug's `lqi` table, 2026-11-05). It is a static snapshot — re-run
-those commands and edit the diagram to refresh it.
+Home Assistant cannot draw this network itself, because the Wiser hub is a closed Zigbee coordinator
+(not ZHA or Zigbee2MQTT). This card draws the topology the C6 observed on 2026-11-05 from
+`neighbors`, `children` and the plug's `lqi` table. It is a static snapshot. To refresh it, re-run
+those commands and edit the diagram.
 
-Add a **Manual** card (or Markdown card) to a dashboard and paste this YAML:
+> The topology has changed since this snapshot: there are now two C6 routers, and four TRVs use C6
+> 0x2c3c as their parent. See [test-results.md](test-results.md).
+
+Add a Manual (or Markdown) card to a dashboard and paste this YAML:
 
 ```yaml
 type: markdown
@@ -43,11 +46,10 @@ content: |
 
 ## Notes
 
-* Short addresses (0x….) can change if a device rejoins; the stable id is the IEEE (not shown here on
-  purpose). To label a node with a real device, match its IEEE from the C6's `interview`/`lqi` output
-  against the Wiser app.
-* All 11 end devices are children of the **plug** (0x7798), which is itself a child of the hub. The
-  **C6** is a working router (relays toward the hub) but nothing is parented to it, so it carries no
-  TRV traffic today.
-* To make this live rather than static you would need the network on ZHA/Zigbee2MQTT, which would mean
-  moving devices off the Wiser hub — out of scope for this project.
+* Short addresses change when a device rejoins. The IEEE address is the stable ID and is left out
+  of the diagram. To label a node, match its IEEE from the C6's `interview` or `lqi` output against
+  the Wiser app.
+* At snapshot time, all 11 end devices were children of the plug (0x7798), which is a child of the
+  hub. The C6 relayed toward the hub but had no children, so it carried no TRV traffic.
+* A live diagram would need the network on ZHA or Zigbee2MQTT, which means moving devices off the
+  Wiser hub. That is out of scope.

@@ -1,49 +1,64 @@
 # Serial command reference
 
-Console: USB-C (USB-Serial/JTAG), prompt `wb>`. All commands are read-only unless marked.
-Anything the SDK cannot provide is reported as unavailable — never invented.
+The console is on USB-C (USB-Serial/JTAG) with the prompt `wb>`. Commands are read-only unless
+marked. Values the SDK cannot provide are reported as unavailable.
 
-| Command | Purpose |
+Addresses can be short (`0x1a2b`) or IEEE (`00:12:4b:...`, resolved through the stack's address
+table).
+
+## Read-only
+
+| Command | Shows |
 |---|---|
-| `help` | List commands |
-| `status` | State, uptime, network, link counts, **verdict** + advice, heap |
-| `network` | Joined/factory-new, role, local IEEE, short address, PAN ID, extended PAN ID, channel, NWK update ID, outgoing NWK frame counter, max children, link-status period, scan channel set, TX power |
-| `neighbors` | Local neighbour table: short, IEEE, type (ZC/ZR/ZED), relationship, rx-on-when-idle, LQI, RSSI, outgoing cost, age, depth |
-| `routes` | Routing table (dest, next hop, state, many-to-one, expiry, direct/VIA) and route records |
-| `children` | Children of this router: sleepy flag, LQI/RSSI, configured timeout, aging counter, count vs. limit |
-| `diagnostics` | Join counters by failure class, last BDB status, scan summary, ping result, leave/announce/association counters, NWK status indications, documented SDK limitations |
-| `events` | Last 64 timestamped events (joins, leaves, children, permit-join, NWK status, scans, pings) |
-| `multihop` | Evidence summary: hub as direct neighbour?, route entry to 0x0000 and its next hop (+ link quality), last ping, children, caveats |
-| `health` | One machine-readable `HEALTH key=value …` line (also printed every 300 s) |
-| `scan [force]` | Active beacon scan of the join channel mask. **Refused while joined** (it would take the radio off-channel); `force` overrides on a bench network only |
-| `join` | *(changes state)* Start joining. Refused if already joined — on a joined router it would open the Wiser network |
-| `ping <addr> [n]` | Send ZDO Node_Desc_req `n` times (default 3), print round-trip time. `ping 0x0000` = hub. Harmless/read-only |
-| `lqi <addr>` | ZDO Mgmt_Lqi_req: read a *remote* router's neighbour table (e.g. hub `0x0000` or the WA104). Marks this repeater if listed |
-| `interview <addr>` | ZDO Node_Desc → Active_EP → Simple_Desc for each endpoint → read Basic cluster attributes; prints a `FINGERPRINT-JSON` line |
-| `profile [show\|pending\|set k v\|save\|defaults]` | *(changes config)* Identity/compatibility profile. Keys: `manufacturer`, `model`, `date_code`, `endpoint`, `profile_id`, `device_id`, `device_version`, `manufacturer_code`, `identify`, `max_children`, `power_source`, `in_clusters`, `out_clusters`, `source`. Applies after `save` + `reboot` |
-| `epid [<EPID>\|clear\|show]` | *(changes config)* Only join this extended PAN ID |
-| `channels [11,15\|0xMASK\|default]` | *(changes config)* Channels searched when joining (after reboot) |
-| `tclk [on\|off\|default]` | *(changes config)* Require Trust Center link-key exchange (on = Zigbee 3.0). After reboot |
-| `reset` / `reset confirm <code>` | *(destructive)* Leave the network and clear Zigbee state. Requires the one-time code printed by `reset` within 30 s |
-| `reboot` | Restart; keeps network membership |
-| `version` | Firmware/IDF version |
-| `log <tag\|*> <level>` | Runtime log level (`none/error/warn/info/debug`) |
-| `pinroute [on\|hard\|off\|status]` | *(experimental, changes stack behaviour)* `on`: route-cost policy `use_route_for_neighbour` (prefer an existing relayed route over a direct link to the hub). `hard`: also MAC-filter the hub's direct frames. Uses cert/test-grade SDK APIs. **Tested: did not help** — it chooses among existing routes and cannot create a missing route to the hub. `CONFIG_WB_PIN_HUB_ROUTE` applies `on` at every join (default off) |
-| `netkey` / `netkey confirm <code>` | *(only in builds with `CONFIG_WB_NETKEY_EXPORT=y`, default **off**)* Prints the joined network's key once so you can decrypt your own sniffer captures. Never enable in a build you distribute |
+| `help` | Command list |
+| `status` | State, uptime, network, link counts, verdict and advice, heap |
+| `network` | Join state, role, IEEE and short address, PAN ID, extended PAN ID, channel, NWK update ID, outgoing frame counter, max children, link-status period, scan channels, TX power |
+| `neighbors` | Neighbour table: short, IEEE, type (ZC/ZR/ZED), relationship, rx-on-when-idle, LQI, RSSI, outgoing cost, age, depth |
+| `routes` | Routing table (destination, next hop, state, many-to-one, expiry, direct or via) and route records |
+| `children` | Children: sleepy flag, LQI/RSSI, timeout, aging counter, count against the limit |
+| `diagnostics` | Join failure counters, last BDB status, scan summary, ping result, leave/announce/association counters, NWK status indications, SDK limitations |
+| `events` | Last 64 timestamped events |
+| `multihop` | Whether the hub is a direct neighbour, route and next hop to 0x0000, last ping, children |
+| `health` | One `HEALTH key=value ...` line (also printed every 300 s) |
+| `scan [force]` | Beacon scan of the join channels. Refused while joined because it leaves the channel; `force` overrides, on a bench network only |
+| `ping <addr> [n]` | Sends ZDO Node_Desc_req `n` times (default 3) and prints round-trip times. `ping 0x0000` = hub |
+| `lqi <addr>` | Reads a remote router's neighbour table (Mgmt_Lqi_req), for example the hub or WA104 |
+| `interview <addr>` | Reads node, endpoint and Basic cluster descriptors and prints a `FINGERPRINT-JSON` line |
+| `apslog [on\|off]` | Logs each ZDO/ZCL request sent to this node (tagged `APS-IN` / `WB_APSIN`) |
+| `version` | Firmware and IDF version |
+| `log <tag\|*> <level>` | Sets log level: `none`, `error`, `warn`, `info`, `debug` |
 
-Addresses can be given as short addresses (`0x1a2b`) or IEEE addresses (`00:12:4b:…`, resolved via
-the stack's address table).
+## Changes state or settings
+
+| Command | Effect |
+|---|---|
+| `join` | Starts joining. Refused when already joined, because it would open the Wiser network |
+| `profile [show\|pending\|set k v\|save\|defaults]` | Identity profile. Applies after `save` and `reboot`. Keys: `manufacturer`, `model`, `date_code`, `endpoint`, `profile_id`, `device_id`, `device_version`, `manufacturer_code`, `identify`, `max_children`, `power_source`, `in_clusters`, `out_clusters`, `source` |
+| `epid [<EPID>\|clear\|show]` | Join only this extended PAN ID |
+| `channels [11,15\|0xMASK\|default]` | Channels searched when joining. Applies after reboot |
+| `tclk [on\|off\|default]` | Require Trust Center link-key exchange (`on` = Zigbee 3.0). Applies after reboot |
+| `relay [on\|off\|pin <n\|default>\|invert <on\|off\|default>]` | On/Off output driven by the plug On/Off cluster. `on`/`off` override locally. Pin settings are saved and apply at once |
+| `reboot` | Restart. Keeps network membership |
+| `reset`, then `reset confirm <code>` | Destructive: leaves the network and clears Zigbee state. Confirm with the printed code within 30 s |
+
+To restore the default plug identity: `profile defaults`, `profile save`, `reboot`.
+
+## Experimental and diagnostic
+
+| Command | Effect |
+|---|---|
+| `pinroute [on\|hard\|off\|status]` | Experimental. `on` sets route-cost policy `use_route_for_neighbour` (prefer a relayed route over a direct link to the hub); `hard` also MAC-filters the hub's direct frames. Uses test-grade SDK APIs. Tested and did not help: it picks among existing routes and cannot create a missing one. `CONFIG_WB_PIN_HUB_ROUTE` applies `on` at every join (default off) |
+| `netkey`, then `netkey confirm <code>` | Only with `CONFIG_WB_NETKEY_EXPORT=y` (off by default). Prints the network key once, to decrypt your own sniffer captures. Never enable it in a build you distribute |
 
 ## HEALTH line fields
 
-`up` uptime · `state` · `short` · `pan` · `ch` · `nbr` neighbours · `rtr` router/hub neighbours ·
-`child` children · `sleepy` sleepy children · `routes` active routes · `coord_nh` next hop to the hub
-(0xffff = no entry) · `heap`/`minheap` · `rejoins` · `leaves` · `nlme` NWK status indications ·
-`noLinks` no-active-links events · `verdict`.
+`up` uptime, `state`, `short` address, `pan`, `ch` channel, `nbr` neighbours, `rtr` router and hub
+neighbours, `child` children, `sleepy` sleepy children, `routes` active routes, `coord_nh` next hop
+to the hub (0xffff = none), `heap`/`minheap`, `rejoins`, `leaves`, `nlme` NWK status indications,
+`noLinks` no-active-links events, `verdict`.
 
-## Things the public SDK does not expose (stated, not faked)
+## Not available from the SDK
 
-* Count of frames relayed for other devices, MAC retries, CCA failures.
-* Per-child poll timestamps or buffered-frame counts.
-* Network/link keys (never read, except by the opt-in `netkey` diagnostic in a
-  `CONFIG_WB_NETKEY_EXPORT=y` build).
+- Frames relayed for other devices, MAC retries, CCA failures.
+- Per-child poll times and buffered-frame counts.
+- Network and link keys (except through `netkey` in a `CONFIG_WB_NETKEY_EXPORT=y` build).
